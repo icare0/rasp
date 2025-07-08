@@ -1,3 +1,5 @@
+in dev, don t really work for now
+
 ## Architecture
 
 Here's a sequence diagram illustrating the interaction between the user, frontend, backend, and Raspberry Pi:
