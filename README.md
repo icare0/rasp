@@ -1,4 +1,8 @@
-in dev
+## Architecture
+
+Here's a sequence diagram illustrating the interaction between the user, frontend, backend, and Raspberry Pi:
+
+```mermaid
 sequenceDiagram
     participant User
     participant Frontend
