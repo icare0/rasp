@@ -42,7 +42,9 @@ class ApiService {
       this.socket.disconnect();
     }
 
-    this.socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000', {
+    // Connexion au namespace /client pour les utilisateurs du dashboard
+    const socketUrl = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
+    this.socket = io(`${socketUrl}/client`, {
       auth: { token }
     });
 
@@ -56,6 +58,19 @@ class ApiService {
 
     this.socket.on('connect_error', (error) => {
       console.error('Erreur socket:', error);
+    });
+
+    // Événements en temps réel
+    this.socket.on('device-connected', (data) => {
+      console.log('Device connecté:', data);
+    });
+
+    this.socket.on('device-disconnected', (data) => {
+      console.log('Device déconnecté:', data);
+    });
+
+    this.socket.on('new-alert', (data) => {
+      console.log('Nouvelle alerte:', data);
     });
   }
 
@@ -183,6 +198,94 @@ class ApiService {
 
   async getUserStats() {
     return this.get('/users/stats');
+  }
+
+  // Gestion des devices (Raspberry Pi)
+  async getDevices() {
+    return this.get('/devices');
+  }
+
+  async getDevice(id) {
+    return this.get(`/devices/${id}`);
+  }
+
+  async createDevice(deviceData) {
+    return this.post('/devices', deviceData);
+  }
+
+  async updateDevice(id, deviceData) {
+    return this.put(`/devices/${id}`, deviceData);
+  }
+
+  async deleteDevice(id) {
+    return this.delete(`/devices/${id}`);
+  }
+
+  async regenerateApiKey(id) {
+    return this.post(`/devices/${id}/regenerate-key`);
+  }
+
+  async getDeviceMetrics(id, period = '24h') {
+    return this.get(`/devices/${id}/metrics?period=${period}`);
+  }
+
+  async getDeviceAlerts(id, status = 'active', limit = 50) {
+    return this.get(`/devices/${id}/alerts?status=${status}&limit=${limit}`);
+  }
+
+  async getDevicesSummary() {
+    return this.get('/devices/stats/summary');
+  }
+
+  // Gestion des alertes
+  async getAlerts(params = {}) {
+    const { status = 'active', severity, type, deviceId, limit = 100, page = 1 } = params;
+    let url = `/alerts?status=${status}&limit=${limit}&page=${page}`;
+    if (severity) url += `&severity=${severity}`;
+    if (type) url += `&type=${type}`;
+    if (deviceId) url += `&deviceId=${deviceId}`;
+    return this.get(url);
+  }
+
+  async getAlert(id) {
+    return this.get(`/alerts/${id}`);
+  }
+
+  async acknowledgeAlert(id) {
+    return this.put(`/alerts/${id}/acknowledge`);
+  }
+
+  async resolveAlert(id, notes) {
+    return this.put(`/alerts/${id}/resolve`, { notes });
+  }
+
+  async bulkAcknowledgeAlerts(alertIds) {
+    return this.post('/alerts/bulk/acknowledge', { alertIds });
+  }
+
+  async bulkResolveAlerts(alertIds, notes) {
+    return this.post('/alerts/bulk/resolve', { alertIds, notes });
+  }
+
+  async deleteAlert(id) {
+    return this.delete(`/alerts/${id}`);
+  }
+
+  async getAlertsSummary() {
+    return this.get('/alerts/summary/global');
+  }
+
+  // Helper pour s'abonner aux mises à jour d'un device
+  subscribeToDevice(deviceId) {
+    if (this.socket) {
+      this.socket.emit('subscribe-device', deviceId);
+    }
+  }
+
+  unsubscribeFromDevice(deviceId) {
+    if (this.socket) {
+      this.socket.emit('unsubscribe-device', deviceId);
+    }
   }
 }
 
