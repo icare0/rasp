@@ -16,6 +16,14 @@ const config = require('./config/config');
 const authRoutes = require('./routes/auth');
 const projectRoutes = require('./routes/projects');
 const commandRoutes = require('./routes/commands');
+const userRoutes = require('./routes/users');
+const deviceRoutes = require('./routes/devices');
+const alertRoutes = require('./routes/alerts');
+
+// Importer les modèles
+const Device = require('./models/Device');
+const Metrics = require('./models/Metrics');
+const Alert = require('./models/Alert');
 
 const app = express();
 const server = http.createServer(app);
@@ -70,6 +78,9 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/commands', commandRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/devices', deviceRoutes);
+app.use('/api/alerts', alertRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {
@@ -100,38 +111,310 @@ app.use('*', (req, res) => {
   });
 });
 
-// Configuration Socket.IO pour les logs en temps réel
-io.use((socket, next) => {
+// ============================================
+// SOCKET.IO - CONFIGURATION
+// ============================================
+
+// Namespace pour les clients web (dashboard)
+const clientNamespace = io.of('/client');
+
+// Configuration Socket.IO pour les utilisateurs du dashboard
+clientNamespace.use((socket, next) => {
   try {
     const token = socket.handshake.auth.token;
+    if (!token) {
+      return next(new Error('Token manquant'));
+    }
     const decoded = jwt.verify(token, config.JWT_SECRET);
     socket.userId = decoded.id;
+    socket.userRole = decoded.role;
     next();
   } catch (err) {
     next(new Error('Authentification socket échouée'));
   }
 });
 
-io.on('connection', (socket) => {
-  console.log(`Utilisateur connecté via Socket.IO: ${socket.userId}`);
+clientNamespace.on('connection', (socket) => {
+  console.log(`[CLIENT] Utilisateur connecté: ${socket.userId}`);
 
+  // Rejoindre une salle de device pour recevoir les mises à jour
+  socket.on('subscribe-device', (deviceId) => {
+    socket.join(`device-${deviceId}`);
+    console.log(`[CLIENT] Utilisateur ${socket.userId} suit le device ${deviceId}`);
+  });
+
+  socket.on('unsubscribe-device', (deviceId) => {
+    socket.leave(`device-${deviceId}`);
+    console.log(`[CLIENT] Utilisateur ${socket.userId} ne suit plus le device ${deviceId}`);
+  });
+
+  // Rejoindre une salle de projet pour les logs
   socket.on('join-project', (projectId) => {
     socket.join(`project-${projectId}`);
-    console.log(`Utilisateur ${socket.userId} a rejoint le projet ${projectId}`);
+    console.log(`[CLIENT] Utilisateur ${socket.userId} a rejoint le projet ${projectId}`);
   });
 
   socket.on('leave-project', (projectId) => {
     socket.leave(`project-${projectId}`);
-    console.log(`Utilisateur ${socket.userId} a quitté le projet ${projectId}`);
+    console.log(`[CLIENT] Utilisateur ${socket.userId} a quitté le projet ${projectId}`);
   });
 
   socket.on('disconnect', () => {
-    console.log(`Utilisateur déconnecté: ${socket.userId}`);
+    console.log(`[CLIENT] Utilisateur déconnecté: ${socket.userId}`);
   });
 });
 
-// Rendre io disponible globalement pour les logs en temps réel
+// ============================================
+// NAMESPACE POUR LES AGENTS RASPBERRY PI
+// ============================================
+
+const agentNamespace = io.of('/agent');
+
+// Authentification des agents via API Key
+agentNamespace.use(async (socket, next) => {
+  try {
+    const { apiKey, machineId, deviceName } = socket.handshake.auth;
+
+    if (!apiKey) {
+      return next(new Error('API Key manquante'));
+    }
+
+    // Vérifier si l'appareil existe
+    let device = await Device.findOne({ apiKey, isActive: true });
+
+    if (!device) {
+      // Si l'appareil n'existe pas et qu'on a un machineId, créer automatiquement
+      if (machineId) {
+        console.log(`[AGENT] Nouvel appareil détecté: ${machineId} - ${deviceName}`);
+        device = await Device.create({
+          machineId,
+          deviceName: deviceName || machineId,
+          apiKey,
+          isOnline: false
+        });
+      } else {
+        return next(new Error('API Key invalide'));
+      }
+    }
+
+    socket.deviceId = device._id.toString();
+    socket.machineId = device.machineId;
+    socket.deviceName = device.deviceName;
+
+    next();
+  } catch (err) {
+    console.error('[AGENT] Erreur d\'authentification:', err);
+    next(new Error('Authentification échouée'));
+  }
+});
+
+// Gestion des connexions des agents
+agentNamespace.on('connection', async (socket) => {
+  console.log(`[AGENT] 🍓 Agent connecté: ${socket.deviceName} (${socket.machineId})`);
+
+  try {
+    // Marquer l'appareil comme en ligne
+    const device = await Device.findById(socket.deviceId);
+    if (device) {
+      await device.setOnline(socket.id);
+
+      // Notifier les clients web
+      clientNamespace.to(`device-${socket.deviceId}`).emit('device-status', {
+        deviceId: socket.deviceId,
+        isOnline: true,
+        timestamp: new Date()
+      });
+
+      // Broadcast à tous les clients web
+      clientNamespace.emit('device-connected', {
+        deviceId: socket.deviceId,
+        deviceName: socket.deviceName,
+        machineId: socket.machineId
+      });
+    }
+  } catch (error) {
+    console.error('[AGENT] Erreur lors de la mise à jour du statut:', error);
+  }
+
+  // Enregistrement de l'appareil avec informations statiques
+  socket.on('device_register', async (data) => {
+    try {
+      console.log(`[AGENT] Enregistrement de l'appareil: ${socket.deviceName}`);
+
+      const device = await Device.findById(socket.deviceId);
+      if (device) {
+        device.systemInfo = {
+          system: data.system || {},
+          os: data.os || {},
+          cpu: data.cpu || {},
+          memory: data.memory || {},
+          disk: data.disk || []
+        };
+        device.deviceName = data.deviceName || device.deviceName;
+        await device.save();
+
+        console.log(`[AGENT] Informations système mises à jour pour ${socket.deviceName}`);
+      }
+    } catch (error) {
+      console.error('[AGENT] Erreur lors de l\'enregistrement:', error);
+    }
+  });
+
+  // Réception des métriques
+  socket.on('metrics', async (metrics) => {
+    try {
+      const device = await Device.findById(socket.deviceId);
+      if (!device) return;
+
+      // Mettre à jour les dernières métriques dans le device
+      await device.updateMetrics(metrics);
+
+      // Stocker les métriques dans l'historique
+      const metricsDoc = new Metrics({
+        deviceId: socket.deviceId,
+        machineId: socket.machineId,
+        timestamp: new Date(metrics.timestamp),
+        cpu: {
+          usage: metrics.cpu?.usage,
+          loadAvg: metrics.cpu?.loadAvg
+        },
+        temperature: {
+          main: metrics.temperature?.main,
+          max: metrics.temperature?.max
+        },
+        memory: {
+          total: metrics.memory?.total,
+          used: metrics.memory?.used,
+          usagePercent: metrics.memory?.usagePercent
+        },
+        disk: metrics.disk?.[0] ? {
+          size: metrics.disk[0].size,
+          used: metrics.disk[0].used,
+          usagePercent: metrics.disk[0].usagePercent,
+          mount: metrics.disk[0].mount
+        } : undefined,
+        network: {
+          rx_sec: metrics.network?.reduce((sum, net) => sum + (net.rx_sec || 0), 0) || 0,
+          tx_sec: metrics.network?.reduce((sum, net) => sum + (net.tx_sec || 0), 0) || 0
+        },
+        processes: {
+          all: metrics.processes?.all,
+          running: metrics.processes?.running
+        },
+        uptime: metrics.uptime
+      });
+
+      await metricsDoc.save();
+
+      // Vérifier les alertes
+      const alerts = device.checkAlerts();
+
+      for (const alertData of alerts) {
+        const { alert, created } = await Alert.createIfNotExists({
+          deviceId: device._id,
+          machineId: device.machineId,
+          deviceName: device.deviceName,
+          type: alertData.type,
+          severity: alertData.severity,
+          message: alertData.message,
+          value: alertData.value,
+          threshold: alertData.threshold,
+          metadata: alertData.mount ? { mount: alertData.mount } : {}
+        });
+
+        // Si c'est une nouvelle alerte, notifier les clients
+        if (created) {
+          console.log(`[ALERT] 🚨 Nouvelle alerte pour ${device.deviceName}: ${alertData.message}`);
+          clientNamespace.emit('new-alert', {
+            alert,
+            device: {
+              id: device._id,
+              name: device.deviceName,
+              machineId: device.machineId
+            }
+          });
+        }
+      }
+
+      // Si aucune alerte, résoudre automatiquement les alertes du même type
+      const alertTypes = ['cpu', 'temperature', 'memory', 'disk'];
+      for (const type of alertTypes) {
+        const hasAlert = alerts.some(a => a.type === type);
+        if (!hasAlert) {
+          await Alert.autoResolve(device._id, type);
+        }
+      }
+
+      // Envoyer les métriques en temps réel aux clients web
+      clientNamespace.to(`device-${socket.deviceId}`).emit('metrics-update', {
+        deviceId: socket.deviceId,
+        metrics: device.lastMetrics,
+        alerts: alerts.length > 0 ? alerts : null
+      });
+
+    } catch (error) {
+      console.error('[AGENT] Erreur lors du traitement des métriques:', error);
+    }
+  });
+
+  // Réponse à une commande
+  socket.on('command_result', (data) => {
+    console.log(`[AGENT] Résultat de commande reçu de ${socket.deviceName}`);
+    clientNamespace.emit('command-result', {
+      deviceId: socket.deviceId,
+      ...data
+    });
+  });
+
+  // Ping/Pong pour vérifier la connexion
+  socket.on('pong', (data) => {
+    // Mise à jour du lastSeen
+    Device.findByIdAndUpdate(socket.deviceId, { lastSeen: new Date() }).catch(err => {
+      console.error('[AGENT] Erreur lors de la mise à jour de lastSeen:', err);
+    });
+  });
+
+  // Déconnexion de l'agent
+  socket.on('device_disconnect', async () => {
+    console.log(`[AGENT] Agent demande la déconnexion: ${socket.deviceName}`);
+  });
+
+  socket.on('disconnect', async (reason) => {
+    console.log(`[AGENT] 🍓 Agent déconnecté: ${socket.deviceName} - Raison: ${reason}`);
+
+    try {
+      const device = await Device.findById(socket.deviceId);
+      if (device) {
+        await device.setOffline();
+
+        // Notifier les clients web
+        clientNamespace.to(`device-${socket.deviceId}`).emit('device-status', {
+          deviceId: socket.deviceId,
+          isOnline: false,
+          timestamp: new Date()
+        });
+
+        clientNamespace.emit('device-disconnected', {
+          deviceId: socket.deviceId,
+          deviceName: socket.deviceName,
+          machineId: socket.machineId
+        });
+      }
+    } catch (error) {
+      console.error('[AGENT] Erreur lors de la déconnexion:', error);
+    }
+  });
+});
+
+// Ping périodique vers les agents pour vérifier la connexion
+setInterval(() => {
+  agentNamespace.emit('ping');
+}, 30000); // Toutes les 30 secondes
+
+// Rendre les namespaces disponibles globalement
 global.io = io;
+global.clientNamespace = clientNamespace;
+global.agentNamespace = agentNamespace;
 
 const PORT = config.PORT;
 

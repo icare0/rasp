@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
-import Dashboard from './components/Dashboard';
-import Header from './components/Header';
+import RaspberryDashboard from './components/RaspberryDashboard';
+import DeviceDetails from './components/DeviceDetails';
+import Terminal from './components/Terminal';
 import { api } from './services/api';
 
 function App() {
@@ -65,48 +66,59 @@ function App() {
 
   return (
     <Router>
-      <div className={`app ${darkMode ? 'dark-mode' : 'light-mode'}`}>
-        {isAuthenticated && (
-          <Header 
-            user={user} 
-            onLogout={handleLogout}
-            darkMode={darkMode}
-            onToggleDarkMode={toggleDarkMode}
+      <div className="app">
+        <Routes>
+          <Route
+            path="/login"
+            element={
+              !isAuthenticated ? (
+                <Login onLogin={handleLogin} />
+              ) : (
+                <Navigate to="/dashboard" replace />
+              )
+            }
           />
-        )}
-        
-        <main className="main-content">
-          <Routes>
-            <Route 
-              path="/login" 
-              element={
-                !isAuthenticated ? (
-                  <Login onLogin={handleLogin} />
-                ) : (
-                  <Navigate to="/dashboard" replace />
-                )
-              } 
-            />
-            
-            <Route 
-              path="/dashboard" 
-              element={
-                isAuthenticated ? (
-                  <Dashboard user={user} />
-                ) : (
-                  <Navigate to="/login" replace />
-                )
-              } 
-            />
-            
-            <Route 
-              path="/" 
-              element={
-                <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
-              } 
-            />
-          </Routes>
-        </main>
+
+          <Route
+            path="/dashboard"
+            element={
+              isAuthenticated ? (
+                <RaspberryDashboard user={user} />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/devices/:id"
+            element={
+              isAuthenticated ? (
+                <DeviceDetails />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/devices/:id/terminal"
+            element={
+              isAuthenticated ? (
+                <Terminal />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/"
+            element={
+              <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+            }
+          />
+        </Routes>
       </div>
     </Router>
   );
