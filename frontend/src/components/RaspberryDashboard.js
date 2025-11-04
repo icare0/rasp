@@ -11,7 +11,8 @@ import {
   Settings,
   LogOut,
   Thermometer,
-  MemoryStick
+  MemoryStick,
+  Zap
 } from 'lucide-react';
 import { api } from '../services/api';
 import DeviceCard from './DeviceCard';
@@ -153,6 +154,14 @@ const RaspberryDashboard = () => {
           </h1>
 
           <div className="dashboard-actions">
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => navigate('/automation')}
+            >
+              <Zap size={16} />
+              Automatisation
+            </button>
+
             <button
               className="btn btn-ghost btn-sm"
               onClick={handleRefresh}

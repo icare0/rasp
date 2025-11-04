@@ -19,11 +19,14 @@ const commandRoutes = require('./routes/commands');
 const userRoutes = require('./routes/users');
 const deviceRoutes = require('./routes/devices');
 const alertRoutes = require('./routes/alerts');
+const workflowRoutes = require('./routes/workflows');
+const quickActionRoutes = require('./routes/quickActions');
 
 // Importer les modèles
 const Device = require('./models/Device');
 const Metrics = require('./models/Metrics');
 const Alert = require('./models/Alert');
+const WorkflowExecution = require('./models/WorkflowExecution');
 
 const app = express();
 const server = http.createServer(app);
@@ -81,6 +84,8 @@ app.use('/api/commands', commandRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/alerts', alertRoutes);
+app.use('/api/workflows', workflowRoutes);
+app.use('/api/quick-actions', quickActionRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {

@@ -106,6 +106,12 @@ function connectToServer() {
     await executeCommand(data);
   });
 
+  // Exécuter une commande (pour workflows et quick actions)
+  socket.on('execute_command', async (data) => {
+    log('info', `📨 Exécution de commande: ${data.stepName || data.actionName || 'Custom'}`);
+    await executeWorkflowCommand(data);
+  });
+
   socket.on('ping', () => {
     log('debug', '🏓 Ping reçu du serveur');
     socket.emit('pong', { machineId, timestamp: Date.now() });
@@ -352,6 +358,73 @@ async function executeCommand(data) {
       id,
       success: false,
       error: error.message
+    });
+  }
+}
+
+// Exécuter une commande de workflow/quick action
+async function executeWorkflowCommand(data) {
+  const { command, directory, executionId, deviceId, stepName, actionName, timeout = 60 } = data;
+  const { exec } = require('child_process');
+  const startTime = Date.now();
+
+  try {
+    log('info', `🚀 Exécution: ${stepName || actionName || command}`);
+    log('debug', `   Commande: ${command}`);
+    log('debug', `   Répertoire: ${directory || 'N/A'}`);
+
+    const result = await new Promise((resolve, reject) => {
+      const options = {
+        timeout: timeout * 1000,
+        maxBuffer: 1024 * 1024, // 1MB
+        cwd: directory || undefined
+      };
+
+      exec(command, options, (error, stdout, stderr) => {
+        const duration = Date.now() - startTime;
+
+        if (error) {
+          log('error', `❌ Échec (${duration}ms): ${error.message}`);
+          resolve({
+            success: false,
+            output: stdout,
+            error: stderr || error.message,
+            exitCode: error.code || 1,
+            duration
+          });
+        } else {
+          log('info', `✅ Succès (${duration}ms)`);
+          if (stdout) log('debug', `   Output: ${stdout.substring(0, 200)}${stdout.length > 200 ? '...' : ''}`);
+          resolve({
+            success: true,
+            output: stdout,
+            error: stderr,
+            exitCode: 0,
+            duration
+          });
+        }
+      });
+    });
+
+    // Envoyer le résultat au serveur
+    socket.emit('workflow_command_result', {
+      executionId,
+      deviceId,
+      stepName: stepName || actionName,
+      command,
+      ...result
+    });
+
+  } catch (error) {
+    log('error', `💥 Erreur critique: ${error.message}`);
+    socket.emit('workflow_command_result', {
+      executionId,
+      deviceId,
+      stepName: stepName || actionName,
+      command,
+      success: false,
+      error: error.message,
+      duration: Date.now() - startTime
     });
   }
 }
