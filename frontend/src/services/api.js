@@ -287,6 +287,77 @@ class ApiService {
       this.socket.emit('unsubscribe-device', deviceId);
     }
   }
+
+  // ========================================
+  // WORKFLOWS
+  // ========================================
+
+  async getWorkflows(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.get(`/workflows${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getWorkflow(id) {
+    return this.get(`/workflows/${id}`);
+  }
+
+  async createWorkflow(workflowData) {
+    return this.post('/workflows', workflowData);
+  }
+
+  async updateWorkflow(id, workflowData) {
+    return this.put(`/workflows/${id}`, workflowData);
+  }
+
+  async deleteWorkflow(id) {
+    return this.delete(`/workflows/${id}`);
+  }
+
+  async executeWorkflow(id, deviceIds, executionMode = 'parallel') {
+    return this.post(`/workflows/${id}/execute`, { deviceIds, executionMode });
+  }
+
+  async getWorkflowExecutions(id, params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.get(`/workflows/${id}/executions${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async toggleWorkflowFavorite(id) {
+    return this.post(`/workflows/${id}/favorite`);
+  }
+
+  async getWorkflowTemplates() {
+    return this.get('/workflows/templates/list');
+  }
+
+  // ========================================
+  // QUICK ACTIONS
+  // ========================================
+
+  async getQuickActions(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.get(`/quick-actions${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async createQuickAction(actionData) {
+    return this.post('/quick-actions', actionData);
+  }
+
+  async updateQuickAction(id, actionData) {
+    return this.put(`/quick-actions/${id}`, actionData);
+  }
+
+  async deleteQuickAction(id) {
+    return this.delete(`/quick-actions/${id}`);
+  }
+
+  async executeQuickAction(id, deviceIds) {
+    return this.post(`/quick-actions/${id}/execute`, { deviceIds });
+  }
+
+  async getQuickActionPresets() {
+    return this.get('/quick-actions/presets/list');
+  }
 }
 
 export const api = new ApiService();
