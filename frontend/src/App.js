@@ -4,6 +4,8 @@ import Login from './components/Login';
 import RaspberryDashboard from './components/RaspberryDashboard';
 import DeviceDetails from './components/DeviceDetails';
 import Terminal from './components/Terminal';
+import Automation from './components/Automation';
+import Settings from './components/Settings';
 import { api } from './services/api';
 
 function App() {
@@ -106,6 +108,28 @@ function App() {
             element={
               isAuthenticated ? (
                 <Terminal />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/automation"
+            element={
+              isAuthenticated ? (
+                <Automation />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              isAuthenticated ? (
+                <Settings />
               ) : (
                 <Navigate to="/login" replace />
               )
