@@ -1,12 +1,17 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const readline = require('readline');
+const fs = require('fs');
+const path = require('path');
 
 // Importer le modèle User
 const User = require('./backend/models/User');
 
 // Charger la configuration
-require('dotenv').config({ path: './backend/.env' });
+const envPath = path.join(__dirname, 'backend', '.env');
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+}
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -25,8 +30,10 @@ async function createAdmin() {
     console.log('==========================================');
 
     // Connexion à MongoDB
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/raspberry-manager';
     console.log('Connexion à MongoDB...');
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://icareletroisieme:Valentine44&@ticket.drqbyfm.mongodb.net/?retryWrites=true&w=majority&appName=ticket');
+    console.log(`URI: ${mongoUri.replace(/\/\/([^:]+):([^@]+)@/, '//<user>:<password>@')}`);
+    await mongoose.connect(mongoUri);
     console.log('✅ Connecté à MongoDB');
 
     // Vérifier les utilisateurs existants
@@ -142,8 +149,9 @@ if (args.includes('--auto')) {
 async function createAutoAdmin() {
   try {
     console.log('🚀 Création automatique de l\'administrateur par défaut...');
-    
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://icareletroisieme:Valentine44&@ticket.drqbyfm.mongodb.net/?retryWrites=true&w=majority&appName=ticket');
+
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/raspberry-manager';
+    await mongoose.connect(mongoUri);
     
     // Supprimer l'ancien admin s'il existe
     await User.deleteOne({ username: 'admin' });
@@ -176,8 +184,9 @@ async function listUsers() {
   try {
     console.log('👥 Liste des utilisateurs:');
     console.log('=========================');
-    
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://icareletroisieme:Valentine44&@ticket.drqbyfm.mongodb.net/?retryWrites=true&w=majority&appName=ticket');
+
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/raspberry-manager';
+    await mongoose.connect(mongoUri);
     
     const users = await User.find({}, 'username email role isActive createdAt lastLogin');
     
@@ -207,15 +216,16 @@ async function listUsers() {
 async function resetUsers() {
   try {
     console.log('⚠️  ATTENTION: Cette action va supprimer TOUS les utilisateurs!');
-    
+
     const confirm = await question('Êtes-vous sûr? Tapez "SUPPRIMER TOUT" pour confirmer: ');
-    
+
     if (confirm !== 'SUPPRIMER TOUT') {
       console.log('❌ Action annulée');
       process.exit(0);
     }
-    
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://icareletroisieme:Valentine44&@ticket.drqbyfm.mongodb.net/?retryWrites=true&w=majority&appName=ticket');
+
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/raspberry-manager';
+    await mongoose.connect(mongoUri);
     
     const result = await User.deleteMany({});
     console.log(`🗑️  ${result.deletedCount} utilisateur(s) supprimé(s)`);
