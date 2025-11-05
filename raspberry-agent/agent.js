@@ -133,8 +133,8 @@ async function registerDevice() {
       ...staticInfo
     };
 
-    // Forcer la sérialisation JSON pour compatibilité toutes versions Socket.IO
-    socket.emit('device_register', JSON.stringify(registrationData));
+    // Socket.IO gère automatiquement la sérialisation JSON
+    socket.emit('device_register', registrationData);
     log('info', '📝 Appareil enregistré auprès du serveur');
   } catch (error) {
     log('error', `Erreur lors de l'enregistrement: ${error.message}`);
@@ -309,8 +309,8 @@ async function collectAndSendMetrics() {
     const collectionTime = Date.now() - startTime;
 
     // Envoyer les métriques au serveur
-    // Forcer la sérialisation JSON pour compatibilité toutes versions Socket.IO
-    socket.emit('metrics', JSON.stringify(metrics));
+    // Socket.IO gère automatiquement la sérialisation JSON
+    socket.emit('metrics', metrics);
 
     log('debug', `📤 Métriques envoyées (collecte: ${collectionTime}ms) - CPU: ${metrics.cpu.usage}% | RAM: ${metrics.memory.usagePercent}% | Temp: ${metrics.temperature.main || 'N/A'}°C`);
   } catch (error) {
