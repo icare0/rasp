@@ -45,27 +45,62 @@ app.use(helmet({
   contentSecurityPolicy: false // Désactivé pour le développement
 }));
 
-// Rate limiting
+// CORS - Configuration permissive pour le développement
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Autoriser les requêtes sans origine (comme les apps mobiles ou curl)
+    if (!origin) return callback(null, true);
+
+    // En développement, autoriser localhost sur tous les ports
+    if (config.NODE_ENV === 'development') {
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+    }
+
+    // Sinon, vérifier la FRONTEND_URL
+    const allowedOrigins = [
+      process.env.FRONTEND_URL || "http://localhost:3000",
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3000"
+    ];
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // En dev, autoriser quand même
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400 // 24 heures
+};
+
+app.use(cors(corsOptions));
+
+// Préflight pour toutes les routes
+app.options('*', cors(corsOptions));
+
+// Rate limiting - Plus permissif en développement
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limite chaque IP à 100 requêtes par fenêtre
-  message: 'Trop de requêtes depuis cette IP, réessayez plus tard.'
+  max: config.NODE_ENV === 'development' ? 1000 : 100, // Beaucoup plus en dev
+  message: 'Trop de requêtes depuis cette IP, réessayez plus tard.',
+  skip: (req) => config.NODE_ENV === 'development' // Désactiver en dev
 });
 app.use('/api/', limiter);
 
-// Rate limiting strict pour les routes d'authentification
+// Rate limiting pour les routes d'authentification - Plus permissif en développement
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limite à 5 tentatives de connexion par IP
-  skipSuccessfulRequests: true
+  max: config.NODE_ENV === 'development' ? 100 : 5, // Beaucoup plus en dev
+  skipSuccessfulRequests: true,
+  skip: (req) => config.NODE_ENV === 'development' // Désactiver en dev
 });
 app.use('/api/auth/login', authLimiter);
-
-// CORS
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  credentials: true
-}));
 
 // Parser JSON
 app.use(express.json({ limit: '10mb' }));
@@ -184,21 +219,32 @@ agentNamespace.use(async (socket, next) => {
       return next(new Error('API Key manquante'));
     }
 
-    // Vérifier si l'appareil existe
+    if (!machineId) {
+      return next(new Error('Machine ID manquant'));
+    }
+
+    // Vérifier si l'appareil existe avec cette API Key
     let device = await Device.findOne({ apiKey, isActive: true });
 
     if (!device) {
-      // Si l'appareil n'existe pas et qu'on a un machineId, créer automatiquement
-      if (machineId) {
-        console.log(`[AGENT] Nouvel appareil détecté: ${machineId} - ${deviceName}`);
+      // Vérifier si l'appareil existe avec ce machineId
+      device = await Device.findOne({ machineId, isActive: true });
+
+      if (device) {
+        // L'appareil existe mais avec une autre API Key, mettre à jour
+        console.log(`[AGENT] Mise à jour API Key pour: ${machineId}`);
+        device.apiKey = apiKey;
+        await device.save();
+      } else {
+        // Si l'appareil n'existe pas du tout, créer automatiquement
+        console.log(`[AGENT] 🆕 Nouvel appareil détecté: ${machineId} - ${deviceName}`);
         device = await Device.create({
           machineId,
           deviceName: deviceName || machineId,
           apiKey,
           isOnline: false
         });
-      } else {
-        return next(new Error('API Key invalide'));
+        console.log(`[AGENT] ✅ Appareil créé avec succès: ${device._id}`);
       }
     }
 
@@ -209,7 +255,7 @@ agentNamespace.use(async (socket, next) => {
     next();
   } catch (err) {
     console.error('[AGENT] Erreur d\'authentification:', err);
-    next(new Error('Authentification échouée'));
+    next(new Error('Authentification échouée: ' + err.message));
   }
 });
 
