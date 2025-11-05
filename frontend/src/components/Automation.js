@@ -6,7 +6,7 @@ import {
   Plus,
   Zap,
   Workflow as WorkflowIcon,
-  Template,
+  Layers,
   RefreshCw,
   Settings,
   Trash2,
@@ -186,7 +186,7 @@ const Automation = () => {
             className={`btn ${activeTab === 'templates' ? 'btn-primary' : 'btn-ghost'}`}
             onClick={() => setActiveTab('templates')}
           >
-            <Template size={16} />
+            <Layers size={16} />
             Templates
           </button>
         </div>
