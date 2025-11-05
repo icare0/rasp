@@ -35,11 +35,8 @@ const io = socketIo(server, {
     origin: process.env.FRONTEND_URL || "http://localhost:3000",
     methods: ["GET", "POST"]
   },
-  // Désactiver la sérialisation binaire pour éviter les problèmes
-  transports: ['websocket', 'polling'],
-  allowEIO3: true,
-  // Parser JSON correctement
-  parser: require('socket.io-parser')
+  // Utiliser les transports par défaut
+  transports: ['websocket', 'polling']
 });
 
 // Connecter à la base de données
@@ -317,26 +314,19 @@ agentNamespace.on('connection', async (socket) => {
   });
 
   // Réception des métriques
-  socket.on('metrics', async (metricsData) => {
+  socket.on('metrics', async (metrics) => {
     try {
       const device = await Device.findById(socket.deviceId);
       if (!device) return;
 
-      // Parser le JSON si c'est une string (sérialisation explicite depuis l'agent)
-      let metrics;
-      if (typeof metricsData === 'string') {
-        try {
-          metrics = JSON.parse(metricsData);
-          console.log(`[AGENT] Métriques JSON parsées pour ${socket.deviceName}`);
-        } catch (e) {
-          console.error('[AGENT] Erreur parsing JSON des métriques:', e.message);
-          return;
-        }
-      } else {
-        metrics = metricsData;
+      // Socket.IO désérialise automatiquement les objets JSON
+      // Vérifier que les données sont bien typées
+      if (!metrics || typeof metrics !== 'object') {
+        console.error('[AGENT] Métriques invalides reçues:', typeof metrics);
+        return;
       }
 
-      // Les données sont maintenant correctement parsées, s'assurer du typage
+      // Validation et nettoyage des types
       const cleanMetrics = {
         ...metrics,
         disk: Array.isArray(metrics.disk) ? metrics.disk : [],

@@ -306,9 +306,8 @@ async function collectAndSendMetrics() {
     const collectionTime = Date.now() - startTime;
 
     // Envoyer les métriques au serveur
-    // Sérialiser en JSON pour éviter les problèmes de sérialisation Socket.IO
-    const metricsJSON = JSON.stringify(metrics);
-    socket.emit('metrics', metricsJSON);
+    // Socket.IO gère automatiquement la sérialisation JSON
+    socket.emit('metrics', metrics);
 
     log('debug', `📤 Métriques envoyées (collecte: ${collectionTime}ms) - CPU: ${metrics.cpu.usage}% | RAM: ${metrics.memory.usagePercent}% | Temp: ${metrics.temperature.main || 'N/A'}°C`);
   } catch (error) {
