@@ -23,17 +23,30 @@ function App() {
       const token = localStorage.getItem('token');
       if (token) {
         api.setAuthToken(token);
-        const response = await api.get('/auth/me');
-        if (response.data.success) {
-          setUser(response.data.user);
-          setIsAuthenticated(true);
-        } else {
-          localStorage.removeItem('token');
+        try {
+          const response = await api.get('/auth/me');
+          if (response.data.success) {
+            setUser(response.data.user);
+            setIsAuthenticated(true);
+          } else {
+            console.log('Token invalide, nettoyage...');
+            localStorage.removeItem('token');
+            api.setAuthToken(null);
+          }
+        } catch (error) {
+          // Si c'est une erreur réseau, garder le token pour retry plus tard
+          if (error.response?.status === 401) {
+            console.log('Token expiré, déconnexion');
+            localStorage.removeItem('token');
+            api.setAuthToken(null);
+          } else {
+            console.warn('Serveur inaccessible, tentative plus tard');
+            // Ne pas supprimer le token si c'est juste une erreur réseau
+          }
         }
       }
     } catch (error) {
       console.error('Erreur vérification auth:', error);
-      localStorage.removeItem('token');
     } finally {
       setLoading(false);
     }

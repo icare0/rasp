@@ -19,8 +19,16 @@ class ApiService {
     this.api.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
-          this.handleUnauthorized();
+        // Ne pas rediriger automatiquement pour les routes d'auth
+        const isAuthRoute = error.config?.url?.includes('/auth/');
+
+        if (error.response?.status === 401 && !isAuthRoute) {
+          // Seulement rediriger si on a un token stocké (donc user était connecté)
+          const token = localStorage.getItem('token');
+          if (token) {
+            console.log('Token invalide, déconnexion automatique');
+            this.handleUnauthorized();
+          }
         }
         return Promise.reject(error);
       }
