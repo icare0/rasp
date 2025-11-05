@@ -38,6 +38,13 @@ const Settings = () => {
     loadData();
   }, []);
 
+  // Ouvrir automatiquement le formulaire si aucun appareil
+  useEffect(() => {
+    if (!loading && devices.length === 0 && user?.role === 'admin') {
+      setShowAddDevice(true);
+    }
+  }, [loading, devices.length, user]);
+
   const loadData = async () => {
     try {
       setLoading(true);

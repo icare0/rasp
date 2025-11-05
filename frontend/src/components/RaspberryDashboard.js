@@ -143,7 +143,7 @@ const RaspberryDashboard = () => {
   };
 
   const handleAddDevice = () => {
-    navigate('/devices/new');
+    navigate('/settings');
   };
 
   const handleViewAlerts = () => {
