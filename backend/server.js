@@ -34,7 +34,12 @@ const io = socketIo(server, {
   cors: {
     origin: process.env.FRONTEND_URL || "http://localhost:3000",
     methods: ["GET", "POST"]
-  }
+  },
+  // Désactiver la sérialisation binaire pour éviter les problèmes
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  // Parser JSON correctement
+  parser: require('socket.io-parser')
 });
 
 // Connecter à la base de données
@@ -312,47 +317,75 @@ agentNamespace.on('connection', async (socket) => {
   });
 
   // Réception des métriques
-  socket.on('metrics', async (metrics) => {
+  socket.on('metrics', async (metricsData) => {
     try {
       const device = await Device.findById(socket.deviceId);
       if (!device) return;
 
+      // Parser le JSON si c'est une string (sérialisation explicite depuis l'agent)
+      let metrics;
+      if (typeof metricsData === 'string') {
+        try {
+          metrics = JSON.parse(metricsData);
+          console.log(`[AGENT] Métriques JSON parsées pour ${socket.deviceName}`);
+        } catch (e) {
+          console.error('[AGENT] Erreur parsing JSON des métriques:', e.message);
+          return;
+        }
+      } else {
+        metrics = metricsData;
+      }
+
+      // Les données sont maintenant correctement parsées, s'assurer du typage
+      const cleanMetrics = {
+        ...metrics,
+        disk: Array.isArray(metrics.disk) ? metrics.disk : [],
+        network: Array.isArray(metrics.network) ? metrics.network : [],
+        cpu: {
+          ...metrics.cpu,
+          loadAvg: Array.isArray(metrics.cpu?.loadAvg) ? metrics.cpu.loadAvg : []
+        }
+      };
+
+      // Log pour debugging
+      console.log(`[AGENT] 📊 Métriques reçues de ${socket.deviceName} - CPU: ${cleanMetrics.cpu.usage}% | RAM: ${cleanMetrics.memory.usagePercent}% | Disks: ${cleanMetrics.disk.length}`);
+
       // Mettre à jour les dernières métriques dans le device
-      await device.updateMetrics(metrics);
+      await device.updateMetrics(cleanMetrics);
 
       // Stocker les métriques dans l'historique
       const metricsDoc = new Metrics({
         deviceId: socket.deviceId,
         machineId: socket.machineId,
-        timestamp: new Date(metrics.timestamp),
+        timestamp: new Date(cleanMetrics.timestamp),
         cpu: {
-          usage: metrics.cpu?.usage,
-          loadAvg: metrics.cpu?.loadAvg
+          usage: cleanMetrics.cpu?.usage,
+          loadAvg: cleanMetrics.cpu?.loadAvg
         },
         temperature: {
-          main: metrics.temperature?.main,
-          max: metrics.temperature?.max
+          main: cleanMetrics.temperature?.main,
+          max: cleanMetrics.temperature?.max
         },
         memory: {
-          total: metrics.memory?.total,
-          used: metrics.memory?.used,
-          usagePercent: metrics.memory?.usagePercent
+          total: cleanMetrics.memory?.total,
+          used: cleanMetrics.memory?.used,
+          usagePercent: cleanMetrics.memory?.usagePercent
         },
-        disk: metrics.disk?.[0] ? {
-          size: metrics.disk[0].size,
-          used: metrics.disk[0].used,
-          usagePercent: metrics.disk[0].usagePercent,
-          mount: metrics.disk[0].mount
+        disk: cleanMetrics.disk?.[0] ? {
+          size: cleanMetrics.disk[0].size,
+          used: cleanMetrics.disk[0].used,
+          usagePercent: cleanMetrics.disk[0].usagePercent,
+          mount: cleanMetrics.disk[0].mount
         } : undefined,
         network: {
-          rx_sec: metrics.network?.reduce((sum, net) => sum + (net.rx_sec || 0), 0) || 0,
-          tx_sec: metrics.network?.reduce((sum, net) => sum + (net.tx_sec || 0), 0) || 0
+          rx_sec: cleanMetrics.network?.reduce((sum, net) => sum + (net.rx_sec || 0), 0) || 0,
+          tx_sec: cleanMetrics.network?.reduce((sum, net) => sum + (net.tx_sec || 0), 0) || 0
         },
         processes: {
-          all: metrics.processes?.all,
-          running: metrics.processes?.running
+          all: cleanMetrics.processes?.all,
+          running: cleanMetrics.processes?.running
         },
-        uptime: metrics.uptime
+        uptime: cleanMetrics.uptime
       });
 
       await metricsDoc.save();
