@@ -210,10 +210,35 @@ deviceSchema.methods.setOffline = async function() {
 
 // Méthode pour mettre à jour les métriques
 deviceSchema.methods.updateMetrics = async function(metrics) {
-  this.lastMetrics = {
-    ...metrics,
+  // Parser les chaînes JSON si nécessaire
+  const parseIfString = (value) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  };
+
+  // Nettoyer les métriques en parsant récursivement
+  const cleanedMetrics = {
+    cpu: metrics.cpu ? {
+      usage: metrics.cpu.usage,
+      loadAvg: Array.isArray(parseIfString(metrics.cpu.loadAvg)) ? parseIfString(metrics.cpu.loadAvg) : [],
+      cores: Array.isArray(parseIfString(metrics.cpu.cores)) ? parseIfString(metrics.cpu.cores) : []
+    } : undefined,
+    temperature: metrics.temperature,
+    memory: metrics.memory,
+    disk: Array.isArray(parseIfString(metrics.disk)) ? parseIfString(metrics.disk) : [],
+    network: Array.isArray(parseIfString(metrics.network)) ? parseIfString(metrics.network) : [],
+    processes: metrics.processes,
+    uptime: metrics.uptime,
     timestamp: new Date()
   };
+
+  this.lastMetrics = cleanedMetrics;
   this.lastSeen = new Date();
   await this.save();
 };

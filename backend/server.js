@@ -290,19 +290,45 @@ agentNamespace.on('connection', async (socket) => {
   }
 
   // Enregistrement de l'appareil avec informations statiques
-  socket.on('device_register', async (data) => {
+  socket.on('device_register', async (registrationData) => {
     try {
       console.log(`[AGENT] Enregistrement de l'appareil: ${socket.deviceName}`);
 
+      // Parser les données si elles arrivent comme une chaîne JSON
+      let data;
+      if (typeof registrationData === 'string') {
+        try {
+          data = JSON.parse(registrationData);
+          console.log(`[AGENT] 📦 Données d'enregistrement JSON parsées pour ${socket.deviceName}`);
+        } catch (parseError) {
+          console.error('[AGENT] ❌ Erreur de parsing JSON:', parseError.message);
+          return;
+        }
+      } else {
+        data = registrationData;
+      }
+
       const device = await Device.findById(socket.deviceId);
       if (device) {
+        // Parser récursivement les propriétés
+        const parseIfString = (value) => {
+          if (typeof value === 'string') {
+            try {
+              return JSON.parse(value);
+            } catch {
+              return value;
+            }
+          }
+          return value;
+        };
+
         device.systemInfo = {
           system: data.system || {},
           os: data.os || {},
           cpu: data.cpu || {},
           memory: data.memory || {},
           // S'assurer que disk est un tableau
-          disk: Array.isArray(data.disk) ? data.disk : []
+          disk: Array.isArray(parseIfString(data.disk)) ? parseIfString(data.disk) : []
         };
         device.deviceName = data.deviceName || device.deviceName;
         await device.save();
@@ -315,25 +341,48 @@ agentNamespace.on('connection', async (socket) => {
   });
 
   // Réception des métriques
-  socket.on('metrics', async (metrics) => {
+  socket.on('metrics', async (metricsData) => {
     try {
       const device = await Device.findById(socket.deviceId);
       if (!device) return;
 
-      // Validation des données reçues
-      if (!metrics || typeof metrics !== 'object') {
-        console.error('[AGENT] ❌ Métriques invalides reçues:', typeof metrics);
+      // Parser les données si elles arrivent comme une chaîne JSON
+      let metrics;
+      if (typeof metricsData === 'string') {
+        try {
+          metrics = JSON.parse(metricsData);
+          console.log(`[AGENT] 📦 Métriques JSON parsées pour ${socket.deviceName}`);
+        } catch (parseError) {
+          console.error('[AGENT] ❌ Erreur de parsing JSON:', parseError.message);
+          return;
+        }
+      } else if (typeof metricsData === 'object') {
+        metrics = metricsData;
+      } else {
+        console.error('[AGENT] ❌ Type de métriques invalide:', typeof metricsData);
         return;
       }
 
-      // Validation et nettoyage des types
+      // Parser récursivement les propriétés qui pourraient être des chaînes JSON
+      const parseIfString = (value) => {
+        if (typeof value === 'string') {
+          try {
+            return JSON.parse(value);
+          } catch {
+            return value;
+          }
+        }
+        return value;
+      };
+
+      // Validation et nettoyage des types avec parsing récursif
       const cleanMetrics = {
         ...metrics,
-        disk: Array.isArray(metrics.disk) ? metrics.disk : [],
-        network: Array.isArray(metrics.network) ? metrics.network : [],
+        disk: Array.isArray(parseIfString(metrics.disk)) ? parseIfString(metrics.disk) : [],
+        network: Array.isArray(parseIfString(metrics.network)) ? parseIfString(metrics.network) : [],
         cpu: {
           ...metrics.cpu,
-          loadAvg: Array.isArray(metrics.cpu?.loadAvg) ? metrics.cpu.loadAvg : []
+          loadAvg: Array.isArray(parseIfString(metrics.cpu?.loadAvg)) ? parseIfString(metrics.cpu.loadAvg) : []
         }
       };
 
