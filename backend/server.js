@@ -294,35 +294,60 @@ agentNamespace.on('connection', async (socket) => {
     try {
       console.log(`[AGENT] Enregistrement de l'appareil: ${socket.deviceName}`);
 
+      // Parser les données si c'est une string (compatibilité toutes versions)
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          console.error('[AGENT] Erreur parsing device_register:', e.message);
+          return;
+        }
+      }
+
       const device = await Device.findById(socket.deviceId);
       if (device) {
         device.systemInfo = {
-          system: data.system || {},
-          os: data.os || {},
-          cpu: data.cpu || {},
-          memory: data.memory || {},
-          disk: data.disk || []
+          system: parsedData.system || {},
+          os: parsedData.os || {},
+          cpu: parsedData.cpu || {},
+          memory: parsedData.memory || {},
+          // S'assurer que disk est un tableau
+          disk: Array.isArray(parsedData.disk) ? parsedData.disk : []
         };
-        device.deviceName = data.deviceName || device.deviceName;
+        device.deviceName = parsedData.deviceName || device.deviceName;
         await device.save();
 
         console.log(`[AGENT] Informations système mises à jour pour ${socket.deviceName}`);
       }
     } catch (error) {
-      console.error('[AGENT] Erreur lors de l\'enregistrement:', error);
+      console.error('[AGENT] Erreur lors de l\'enregistrement:', error.message);
     }
   });
 
   // Réception des métriques
-  socket.on('metrics', async (metrics) => {
+  socket.on('metrics', async (metricsData) => {
     try {
       const device = await Device.findById(socket.deviceId);
       if (!device) return;
 
-      // Socket.IO désérialise automatiquement les objets JSON
-      // Vérifier que les données sont bien typées
-      if (!metrics || typeof metrics !== 'object') {
-        console.error('[AGENT] Métriques invalides reçues:', typeof metrics);
+      // Parser les données si c'est une string (compatibilité toutes versions Socket.IO)
+      let metrics;
+      if (typeof metricsData === 'string') {
+        try {
+          metrics = JSON.parse(metricsData);
+          console.log(`[AGENT] ✅ Métriques JSON parsées pour ${socket.deviceName}`);
+        } catch (e) {
+          console.error('[AGENT] ❌ Erreur parsing JSON metrics:', e.message);
+          console.error('[AGENT] Données reçues (type):', typeof metricsData);
+          console.error('[AGENT] Données reçues (extrait):', metricsData.substring(0, 200));
+          return;
+        }
+      } else if (typeof metricsData === 'object' && metricsData !== null) {
+        metrics = metricsData;
+        console.log(`[AGENT] ✅ Métriques objet reçues pour ${socket.deviceName}`);
+      } else {
+        console.error('[AGENT] ❌ Métriques invalides reçues:', typeof metricsData);
         return;
       }
 
@@ -338,7 +363,7 @@ agentNamespace.on('connection', async (socket) => {
       };
 
       // Log pour debugging
-      console.log(`[AGENT] 📊 Métriques reçues de ${socket.deviceName} - CPU: ${cleanMetrics.cpu.usage}% | RAM: ${cleanMetrics.memory.usagePercent}% | Disks: ${cleanMetrics.disk.length}`);
+      console.log(`[AGENT] 📊 Métriques nettoyées - CPU: ${cleanMetrics.cpu.usage}% | RAM: ${cleanMetrics.memory.usagePercent}% | Disks: ${cleanMetrics.disk.length}`);
 
       // Mettre à jour les dernières métriques dans le device
       await device.updateMetrics(cleanMetrics);
