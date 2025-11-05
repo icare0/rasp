@@ -294,60 +294,35 @@ agentNamespace.on('connection', async (socket) => {
     try {
       console.log(`[AGENT] Enregistrement de l'appareil: ${socket.deviceName}`);
 
-      // Parser les données si c'est une string (compatibilité toutes versions)
-      let parsedData = data;
-      if (typeof data === 'string') {
-        try {
-          parsedData = JSON.parse(data);
-        } catch (e) {
-          console.error('[AGENT] Erreur parsing device_register:', e.message);
-          return;
-        }
-      }
-
       const device = await Device.findById(socket.deviceId);
       if (device) {
         device.systemInfo = {
-          system: parsedData.system || {},
-          os: parsedData.os || {},
-          cpu: parsedData.cpu || {},
-          memory: parsedData.memory || {},
+          system: data.system || {},
+          os: data.os || {},
+          cpu: data.cpu || {},
+          memory: data.memory || {},
           // S'assurer que disk est un tableau
-          disk: Array.isArray(parsedData.disk) ? parsedData.disk : []
+          disk: Array.isArray(data.disk) ? data.disk : []
         };
-        device.deviceName = parsedData.deviceName || device.deviceName;
+        device.deviceName = data.deviceName || device.deviceName;
         await device.save();
 
-        console.log(`[AGENT] Informations système mises à jour pour ${socket.deviceName}`);
+        console.log(`[AGENT] ✅ Informations système mises à jour pour ${socket.deviceName}`);
       }
     } catch (error) {
-      console.error('[AGENT] Erreur lors de l\'enregistrement:', error.message);
+      console.error('[AGENT] ❌ Erreur lors de l\'enregistrement:', error);
     }
   });
 
   // Réception des métriques
-  socket.on('metrics', async (metricsData) => {
+  socket.on('metrics', async (metrics) => {
     try {
       const device = await Device.findById(socket.deviceId);
       if (!device) return;
 
-      // Parser les données si c'est une string (compatibilité toutes versions Socket.IO)
-      let metrics;
-      if (typeof metricsData === 'string') {
-        try {
-          metrics = JSON.parse(metricsData);
-          console.log(`[AGENT] ✅ Métriques JSON parsées pour ${socket.deviceName}`);
-        } catch (e) {
-          console.error('[AGENT] ❌ Erreur parsing JSON metrics:', e.message);
-          console.error('[AGENT] Données reçues (type):', typeof metricsData);
-          console.error('[AGENT] Données reçues (extrait):', metricsData.substring(0, 200));
-          return;
-        }
-      } else if (typeof metricsData === 'object' && metricsData !== null) {
-        metrics = metricsData;
-        console.log(`[AGENT] ✅ Métriques objet reçues pour ${socket.deviceName}`);
-      } else {
-        console.error('[AGENT] ❌ Métriques invalides reçues:', typeof metricsData);
+      // Validation des données reçues
+      if (!metrics || typeof metrics !== 'object') {
+        console.error('[AGENT] ❌ Métriques invalides reçues:', typeof metrics);
         return;
       }
 
