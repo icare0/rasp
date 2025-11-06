@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import { api } from '../services/api';
 import {
   AlertTriangle,
   AlertCircle,
@@ -386,7 +386,7 @@ const Alerts = () => {
                   <div className="alert-resolution">
                     <p><strong>Résolu le:</strong> {formatDate(alert.resolvedAt)}</p>
                     {alert.resolvedBy && (
-                      <p><strong>Par:</strong> {alert.resolvedBy.username || alert.resolvedBy}</p>
+                      <p><strong>Par:</strong> {typeof alert.resolvedBy === 'object' ? (alert.resolvedBy.username || 'Utilisateur') : alert.resolvedBy}</p>
                     )}
                     {alert.resolutionNotes && (
                       <p><strong>Notes:</strong> {alert.resolutionNotes}</p>
@@ -399,7 +399,7 @@ const Alerts = () => {
                     <p>
                       <Check size={14} />
                       Reconnu le {formatDate(alert.acknowledgedAt)}
-                      {alert.acknowledgedBy && ` par ${alert.acknowledgedBy.username || alert.acknowledgedBy}`}
+                      {alert.acknowledgedBy && ` par ${typeof alert.acknowledgedBy === 'object' ? (alert.acknowledgedBy.username || 'Utilisateur') : alert.acknowledgedBy}`}
                     </p>
                   </div>
                 )}
