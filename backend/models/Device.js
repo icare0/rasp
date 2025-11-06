@@ -210,6 +210,9 @@ deviceSchema.methods.setOffline = async function() {
 
 // Méthode pour mettre à jour les métriques
 deviceSchema.methods.updateMetrics = async function(metrics) {
+  console.log(`[Device.updateMetrics] 🔧 DÉBUT pour ${this.deviceName}`);
+  console.log(`[Device.updateMetrics] Métriques reçues - CPU: ${metrics.cpu?.usage}%`);
+
   // Parser les chaînes JSON si nécessaire
   const parseIfString = (value) => {
     if (typeof value === 'string') {
@@ -223,6 +226,7 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
   };
 
   // Nettoyer les métriques en parsant récursivement
+  console.log(`[Device.updateMetrics] Nettoyage des métriques...`);
   const cleanedMetrics = {
     cpu: metrics.cpu ? {
       usage: metrics.cpu.usage,
@@ -238,11 +242,25 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
     timestamp: new Date()
   };
 
-  this.lastMetrics = cleanedMetrics;
-  this.lastSeen = new Date();
-  await this.save();
+  console.log(`[Device.updateMetrics] Métriques nettoyées - CPU: ${cleanedMetrics.cpu?.usage}%, RAM: ${cleanedMetrics.memory?.usagePercent}%`);
+  console.log(`[Device.updateMetrics] Attribution à this.lastMetrics...`);
 
-  console.log(`[Device] Métriques mises à jour pour ${this.deviceName} - CPU: ${cleanedMetrics.cpu?.usage}%`);
+  const before = this.lastMetrics ? Object.keys(this.lastMetrics).length : 0;
+  this.lastMetrics = cleanedMetrics;
+  console.log(`[Device.updateMetrics] lastMetrics avant: ${before} clés, après: ${Object.keys(this.lastMetrics).length} clés`);
+
+  this.lastSeen = new Date();
+
+  console.log(`[Device.updateMetrics] Sauvegarde dans MongoDB...`);
+  try {
+    const saved = await this.save();
+    console.log(`[Device.updateMetrics] ✅ SAUVEGARDE RÉUSSIE - ID: ${saved._id}`);
+    console.log(`[Device.updateMetrics] ✅ Vérification après save - CPU: ${saved.lastMetrics?.cpu?.usage}%`);
+    return saved;
+  } catch (error) {
+    console.error(`[Device.updateMetrics] ❌ ERREUR SAUVEGARDE:`, error);
+    throw error;
+  }
 };
 
 // Méthode pour vérifier si une alerte doit être déclenchée

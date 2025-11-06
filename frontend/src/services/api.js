@@ -210,11 +210,25 @@ class ApiService {
 
   // Gestion des devices (Raspberry Pi)
   async getDevices() {
-    return this.get('/devices');
+    console.log('[API] 📡 Fetching /devices...');
+    const response = await this.get('/devices');
+    console.log('[API] ✅ Devices received:', response.data?.count);
+    if (response.data?.data) {
+      const withMetrics = response.data.data.filter(d => d.lastMetrics && Object.keys(d.lastMetrics).length > 0);
+      console.log('[API] 📊 Devices with lastMetrics:', withMetrics.length);
+      withMetrics.forEach(d => {
+        console.log(`[API]   - ${d.deviceName}: CPU=${d.lastMetrics?.cpu?.usage}%, RAM=${d.lastMetrics?.memory?.usagePercent}%`);
+      });
+    }
+    return response;
   }
 
   async getDevice(id) {
-    return this.get(`/devices/${id}`);
+    console.log(`[API] 📡 Fetching /devices/${id}...`);
+    const response = await this.get(`/devices/${id}`);
+    console.log(`[API] ✅ Device received:`, response.data?.data?.deviceName);
+    console.log(`[API] 📊 Has lastMetrics:`, !!response.data?.data?.lastMetrics);
+    return response;
   }
 
   async createDevice(deviceData) {
