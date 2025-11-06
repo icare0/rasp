@@ -386,9 +386,24 @@ deviceSchema.virtual('uptimeFormatted').get(function() {
   }
 });
 
-// Inclure les virtuels dans les conversions JSON
-deviceSchema.set('toJSON', { virtuals: true });
-deviceSchema.set('toObject', { virtuals: true });
+// Inclure les virtuels dans les conversions JSON (mais exclure 'id' automatique de Mongoose)
+deviceSchema.set('toJSON', {
+  virtuals: true,
+  versionKey: false,
+  transform: function(doc, ret) {
+    // Supprimer le 'id' virtuel automatique de Mongoose pour éviter les conflits avec _id
+    delete ret.id;
+    return ret;
+  }
+});
+deviceSchema.set('toObject', {
+  virtuals: true,
+  versionKey: false,
+  transform: function(doc, ret) {
+    delete ret.id;
+    return ret;
+  }
+});
 
 const Device = mongoose.model('Device', deviceSchema);
 

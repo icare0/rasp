@@ -201,6 +201,11 @@ const Alerts = () => {
   };
 
   const getDeviceName = (deviceId) => {
+    // Si deviceId est un objet (populated par le backend), retourner directement le deviceName
+    if (typeof deviceId === 'object' && deviceId !== null) {
+      return deviceId.deviceName || 'Appareil inconnu';
+    }
+    // Sinon, chercher dans la liste des devices
     const device = devices.find(d => d._id === deviceId);
     return device ? device.deviceName : deviceId;
   };
