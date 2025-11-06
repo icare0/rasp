@@ -11,6 +11,17 @@ const DeviceCard = ({ device }) => {
   const metrics = device.lastMetrics || {};
   const isOnline = device.isOnline;
 
+  // Debug log pour vérifier les données
+  React.useEffect(() => {
+    if (isOnline && !metrics.cpu && !metrics.memory) {
+      console.warn(`[DeviceCard] Device ${device.deviceName} is online but has no metrics:`, {
+        deviceId: device._id,
+        hasLastMetrics: !!device.lastMetrics,
+        lastMetricsKeys: device.lastMetrics ? Object.keys(device.lastMetrics) : []
+      });
+    }
+  }, [device, metrics, isOnline]);
+
   // Formater les valeurs
   const cpuUsage = metrics.cpu?.usage?.toFixed(1) || 0;
   const memoryUsage = metrics.memory?.usagePercent?.toFixed(1) || 0;
@@ -111,9 +122,16 @@ const DeviceCard = ({ device }) => {
         </>
       ) : (
         <div className="empty-state" style={{ padding: '2rem 1rem' }}>
-          <p style={{ fontSize: '0.875rem' }}>
-            {isOnline ? 'Aucune donnée disponible' : 'Appareil hors ligne'}
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+            {isOnline
+              ? 'En attente des premières métriques...'
+              : 'Appareil hors ligne'}
           </p>
+          {isOnline && (
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+              Les données apparaîtront dans quelques secondes
+            </p>
+          )}
         </div>
       )}
     </div>

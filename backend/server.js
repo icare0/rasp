@@ -342,11 +342,18 @@ agentNamespace.on('connection', async (socket) => {
 
   // Réception des métriques
   socket.on('metrics', async (metricsData) => {
+    console.log(`[AGENT] 🎯 ========== DÉBUT TRAITEMENT MÉTRIQUES ${socket.deviceName} ==========`);
     try {
+      console.log(`[AGENT] 1️⃣ Recherche du device ID: ${socket.deviceId}`);
       const device = await Device.findById(socket.deviceId);
-      if (!device) return;
+      if (!device) {
+        console.error(`[AGENT] ❌ Device non trouvé: ${socket.deviceId}`);
+        return;
+      }
+      console.log(`[AGENT] ✅ Device trouvé: ${device.deviceName}`);
 
       // Parser les données si elles arrivent comme une chaîne JSON
+      console.log(`[AGENT] 2️⃣ Type de données reçues: ${typeof metricsData}`);
       let metrics;
       if (typeof metricsData === 'string') {
         try {
@@ -354,14 +361,18 @@ agentNamespace.on('connection', async (socket) => {
           console.log(`[AGENT] 📦 Métriques JSON parsées pour ${socket.deviceName}`);
         } catch (parseError) {
           console.error('[AGENT] ❌ Erreur de parsing JSON:', parseError.message);
+          console.error('[AGENT] ❌ Données brutes:', metricsData.substring(0, 200));
           return;
         }
       } else if (typeof metricsData === 'object') {
         metrics = metricsData;
+        console.log(`[AGENT] ✅ Métriques reçues comme objet`);
       } else {
         console.error('[AGENT] ❌ Type de métriques invalide:', typeof metricsData);
         return;
       }
+
+      console.log(`[AGENT] 3️⃣ Métriques brutes - CPU: ${metrics.cpu?.usage}%, RAM: ${metrics.memory?.usagePercent}%, Temp: ${metrics.temperature?.main}°C`);
 
       // Parser récursivement les propriétés qui pourraient être des chaînes JSON
       const parseIfString = (value) => {
@@ -376,6 +387,7 @@ agentNamespace.on('connection', async (socket) => {
       };
 
       // Validation et nettoyage des types avec parsing récursif
+      console.log(`[AGENT] 4️⃣ Nettoyage des métriques...`);
       const cleanMetrics = {
         ...metrics,
         disk: Array.isArray(parseIfString(metrics.disk)) ? parseIfString(metrics.disk) : [],
@@ -387,12 +399,24 @@ agentNamespace.on('connection', async (socket) => {
       };
 
       // Log pour debugging
-      console.log(`[AGENT] 📊 Métriques nettoyées - CPU: ${cleanMetrics.cpu.usage}% | RAM: ${cleanMetrics.memory.usagePercent}% | Disks: ${cleanMetrics.disk.length}`);
+      console.log(`[AGENT] ✅ Métriques nettoyées - CPU: ${cleanMetrics.cpu.usage}% | RAM: ${cleanMetrics.memory.usagePercent}% | Disks: ${cleanMetrics.disk.length}`);
+      console.log(`[AGENT] 📊 Structure: cpu=${!!cleanMetrics.cpu}, memory=${!!cleanMetrics.memory}, disk=${Array.isArray(cleanMetrics.disk)}, network=${Array.isArray(cleanMetrics.network)}`);
+      console.log(`[AGENT] 📊 Timestamp: ${cleanMetrics.timestamp}, uptime: ${cleanMetrics.uptime}`);
 
       // Mettre à jour les dernières métriques dans le device
+      console.log(`[AGENT] 5️⃣ Mise à jour de Device.lastMetrics...`);
+      const beforeUpdate = JSON.stringify(device.lastMetrics).substring(0, 100);
+      console.log(`[AGENT] 📝 Avant updateMetrics: ${beforeUpdate}...`);
+
       await device.updateMetrics(cleanMetrics);
 
+      // Recharger le device pour vérifier
+      const updatedDevice = await Device.findById(socket.deviceId);
+      console.log(`[AGENT] ✅ Device.lastMetrics mis à jour - CPU: ${updatedDevice.lastMetrics?.cpu?.usage}%`);
+      console.log(`[AGENT] 📊 lastMetrics existe: ${!!updatedDevice.lastMetrics}, clés: ${updatedDevice.lastMetrics ? Object.keys(updatedDevice.lastMetrics).join(', ') : 'aucune'}`);
+
       // Stocker les métriques dans l'historique
+      console.log(`[AGENT] 6️⃣ Création du document Metrics pour historique...`);
       const metricsDoc = new Metrics({
         deviceId: socket.deviceId,
         machineId: socket.machineId,
@@ -427,7 +451,13 @@ agentNamespace.on('connection', async (socket) => {
         uptime: cleanMetrics.uptime
       });
 
-      await metricsDoc.save();
+      console.log(`[AGENT] 📊 Metrics doc créé - CPU: ${metricsDoc.cpu.usage}%, deviceId: ${metricsDoc.deviceId}`);
+      console.log(`[AGENT] 💾 Sauvegarde dans MongoDB...`);
+
+      const savedMetrics = await metricsDoc.save();
+
+      console.log(`[AGENT] ✅ Metrics sauvegardé dans MongoDB - ID: ${savedMetrics._id}`);
+      console.log(`[AGENT] ✅ Vérification: CPU=${savedMetrics.cpu.usage}%, RAM=${savedMetrics.memory.usagePercent}%`);
 
       // Vérifier les alertes
       const alerts = device.checkAlerts();
@@ -469,14 +499,40 @@ agentNamespace.on('connection', async (socket) => {
       }
 
       // Envoyer les métriques en temps réel aux clients web
-      clientNamespace.to(`device-${socket.deviceId}`).emit('metrics-update', {
+      console.log(`[AGENT] 7️⃣ Préparation du broadcast Socket.IO...`);
+
+      // Recharger à nouveau pour être sûr d'avoir les dernières données
+      const finalDevice = await Device.findById(socket.deviceId);
+
+      const updateData = {
         deviceId: socket.deviceId,
-        metrics: device.lastMetrics,
+        metrics: finalDevice.lastMetrics,
         alerts: alerts.length > 0 ? alerts : null
-      });
+      };
+
+      console.log(`[AGENT] 📊 Données à broadcaster:`);
+      console.log(`[AGENT]   - deviceId: ${updateData.deviceId}`);
+      console.log(`[AGENT]   - metrics existe: ${!!updateData.metrics}`);
+      console.log(`[AGENT]   - metrics.cpu: ${updateData.metrics?.cpu?.usage}%`);
+      console.log(`[AGENT]   - metrics.memory: ${updateData.metrics?.memory?.usagePercent}%`);
+      console.log(`[AGENT]   - metrics.temperature: ${updateData.metrics?.temperature?.main}°C`);
+      console.log(`[AGENT]   - alerts: ${updateData.alerts?.length || 0}`);
+
+      // Compter les clients connectés dans la room
+      const room = `device-${socket.deviceId}`;
+      const socketsInRoom = await clientNamespace.in(room).fetchSockets();
+      console.log(`[AGENT] 👥 Clients connectés dans room ${room}: ${socketsInRoom.length}`);
+
+      console.log(`[AGENT] 📤 Émission de 'metrics-update'...`);
+      clientNamespace.to(room).emit('metrics-update', updateData);
+      console.log(`[AGENT] ✅ 'metrics-update' émis avec succès`);
+
+      console.log(`[AGENT] 🎯 ========== FIN TRAITEMENT MÉTRIQUES ${socket.deviceName} ==========\n`);
 
     } catch (error) {
-      console.error('[AGENT] Erreur lors du traitement des métriques:', error);
+      console.error(`[AGENT] ❌❌❌ ERREUR CRITIQUE lors du traitement des métriques ❌❌❌`);
+      console.error(`[AGENT] Erreur:`, error);
+      console.error(`[AGENT] Stack:`, error.stack);
     }
   });
 

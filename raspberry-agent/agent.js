@@ -310,9 +310,16 @@ async function collectAndSendMetrics() {
 
     // Envoyer les métriques au serveur
     // Socket.IO gère automatiquement la sérialisation JSON
+    log('debug', `📤 Envoi des métriques au serveur...`);
+    log('debug', `   CPU: ${metrics.cpu.usage}% (loadAvg: ${Array.isArray(metrics.cpu.loadAvg)})`);
+    log('debug', `   RAM: ${metrics.memory.usagePercent}%`);
+    log('debug', `   Temp: ${metrics.temperature.main || 'N/A'}°C`);
+    log('debug', `   Disks: ${metrics.disk.length}, Network: ${metrics.network.length}`);
+    log('debug', `   Type des données - disk: ${Array.isArray(metrics.disk)}, network: ${Array.isArray(metrics.network)}`);
+
     socket.emit('metrics', metrics);
 
-    log('debug', `📤 Métriques envoyées (collecte: ${collectionTime}ms) - CPU: ${metrics.cpu.usage}% | RAM: ${metrics.memory.usagePercent}% | Temp: ${metrics.temperature.main || 'N/A'}°C`);
+    log('debug', `✅ Métriques envoyées (collecte: ${collectionTime}ms)`);
   } catch (error) {
     log('error', `Erreur lors de la collecte des métriques: ${error.message}`);
   }
