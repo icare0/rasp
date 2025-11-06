@@ -210,9 +210,6 @@ deviceSchema.methods.setOffline = async function() {
 
 // Méthode pour mettre à jour les métriques
 deviceSchema.methods.updateMetrics = async function(metrics) {
-  console.log(`[Device.updateMetrics] 🔧 DÉBUT pour ${this.deviceName}`);
-  console.log(`[Device.updateMetrics] Métriques reçues - CPU: ${metrics.cpu?.usage}%`);
-
   // Parser les chaînes JSON si nécessaire
   const parseIfString = (value) => {
     if (typeof value === 'string') {
@@ -225,20 +222,13 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
     return value;
   };
 
-  // Nettoyer les métriques en parsant récursivement
-  console.log(`[Device.updateMetrics] Nettoyage des métriques...`);
-  console.log(`[Device.updateMetrics] Type de metrics.disk: ${typeof metrics.disk}, isArray: ${Array.isArray(metrics.disk)}`);
-  console.log(`[Device.updateMetrics] Type de metrics.network: ${typeof metrics.network}, isArray: ${Array.isArray(metrics.network)}`);
-
   // Parser disk
   let diskParsed = metrics.disk;
   if (typeof diskParsed === 'string') {
-    console.log(`[Device.updateMetrics] ⚠️ disk est une string, parsing...`);
     try {
       diskParsed = JSON.parse(diskParsed);
-      console.log(`[Device.updateMetrics] ✅ disk parsé avec succès, longueur: ${diskParsed.length}`);
     } catch (e) {
-      console.error(`[Device.updateMetrics] ❌ Erreur parsing disk:`, e.message);
+      console.error(`[Device.updateMetrics] Erreur parsing disk:`, e.message);
       diskParsed = [];
     }
   }
@@ -246,12 +236,10 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
   // Parser network
   let networkParsed = metrics.network;
   if (typeof networkParsed === 'string') {
-    console.log(`[Device.updateMetrics] ⚠️ network est une string, parsing...`);
     try {
       networkParsed = JSON.parse(networkParsed);
-      console.log(`[Device.updateMetrics] ✅ network parsé avec succès, longueur: ${networkParsed.length}`);
     } catch (e) {
-      console.error(`[Device.updateMetrics] ❌ Erreur parsing network:`, e.message);
+      console.error(`[Device.updateMetrics] Erreur parsing network:`, e.message);
       networkParsed = [];
     }
   }
@@ -259,7 +247,6 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
   // Parser cpu.loadAvg
   let loadAvgParsed = metrics.cpu?.loadAvg;
   if (typeof loadAvgParsed === 'string') {
-    console.log(`[Device.updateMetrics] ⚠️ cpu.loadAvg est une string, parsing...`);
     try {
       loadAvgParsed = JSON.parse(loadAvgParsed);
     } catch (e) {
@@ -270,7 +257,6 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
   // Parser cpu.cores
   let coresParsed = metrics.cpu?.cores;
   if (typeof coresParsed === 'string') {
-    console.log(`[Device.updateMetrics] ⚠️ cpu.cores est une string, parsing...`);
     try {
       coresParsed = JSON.parse(coresParsed);
     } catch (e) {
@@ -293,25 +279,33 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
     timestamp: new Date()
   };
 
-  console.log(`[Device.updateMetrics] ✅ Après nettoyage - disk.length: ${cleanedMetrics.disk.length}, network.length: ${cleanedMetrics.network.length}`);
+  const now = new Date();
+  const mongoose = require('mongoose');
 
-  console.log(`[Device.updateMetrics] Métriques nettoyées - CPU: ${cleanedMetrics.cpu?.usage}%, RAM: ${cleanedMetrics.memory?.usagePercent}%`);
-  console.log(`[Device.updateMetrics] Attribution à this.lastMetrics...`);
-
-  const before = this.lastMetrics ? Object.keys(this.lastMetrics).length : 0;
-  this.lastMetrics = cleanedMetrics;
-  console.log(`[Device.updateMetrics] lastMetrics avant: ${before} clés, après: ${Object.keys(this.lastMetrics).length} clés`);
-
-  this.lastSeen = new Date();
-
-  console.log(`[Device.updateMetrics] Sauvegarde dans MongoDB...`);
   try {
-    const saved = await this.save();
-    console.log(`[Device.updateMetrics] ✅ SAUVEGARDE RÉUSSIE - ID: ${saved._id}`);
-    console.log(`[Device.updateMetrics] ✅ Vérification après save - CPU: ${saved.lastMetrics?.cpu?.usage}%`);
-    return saved;
+    // Utiliser MongoDB Native Driver pour bypasser Mongoose et écraser les données corrompues
+    const collection = mongoose.connection.db.collection('devices');
+
+    const result = await collection.updateOne(
+      { _id: this._id },
+      {
+        $set: {
+          lastMetrics: cleanedMetrics,
+          lastSeen: now
+        }
+      }
+    );
+
+    // Recharger le document
+    const updated = await this.constructor.findById(this._id);
+
+    // Mettre à jour l'instance courante
+    this.lastMetrics = updated.lastMetrics;
+    this.lastSeen = updated.lastSeen;
+
+    return updated;
   } catch (error) {
-    console.error(`[Device.updateMetrics] ❌ ERREUR SAUVEGARDE:`, error);
+    console.error(`[Device.updateMetrics] Erreur sauvegarde:`, error.message);
     throw error;
   }
 };

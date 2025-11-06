@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
+import ModernLayout from './components/ModernLayout';
 import RaspberryDashboard from './components/RaspberryDashboard';
 import DeviceDetails from './components/DeviceDetails';
 import Terminal from './components/Terminal';
 import Automation from './components/Automation';
+import Alerts from './components/Alerts';
 import Settings from './components/Settings';
 import { api } from './services/api';
 
@@ -98,7 +100,9 @@ function App() {
             path="/dashboard"
             element={
               isAuthenticated ? (
-                <RaspberryDashboard user={user} />
+                <ModernLayout user={user}>
+                  <RaspberryDashboard user={user} />
+                </ModernLayout>
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -109,7 +113,9 @@ function App() {
             path="/devices/:id"
             element={
               isAuthenticated ? (
-                <DeviceDetails />
+                <ModernLayout user={user}>
+                  <DeviceDetails />
+                </ModernLayout>
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -120,7 +126,9 @@ function App() {
             path="/devices/:id/terminal"
             element={
               isAuthenticated ? (
-                <Terminal />
+                <ModernLayout user={user}>
+                  <Terminal />
+                </ModernLayout>
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -131,7 +139,22 @@ function App() {
             path="/automation"
             element={
               isAuthenticated ? (
-                <Automation />
+                <ModernLayout user={user}>
+                  <Automation />
+                </ModernLayout>
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/alerts"
+            element={
+              isAuthenticated ? (
+                <ModernLayout user={user}>
+                  <Alerts />
+                </ModernLayout>
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -142,7 +165,9 @@ function App() {
             path="/settings"
             element={
               isAuthenticated ? (
-                <Settings />
+                <ModernLayout user={user}>
+                  <Settings />
+                </ModernLayout>
               ) : (
                 <Navigate to="/login" replace />
               )

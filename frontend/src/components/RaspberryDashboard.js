@@ -31,6 +31,7 @@ import {
 import { api } from '../services/api';
 import DeviceCard from './DeviceCard';
 import '../styles/Dashboard.css';
+import '../styles/ModernDashboard.css';
 
 const RaspberryDashboard = () => {
   const navigate = useNavigate();
@@ -53,9 +54,6 @@ const RaspberryDashboard = () => {
         api.getAlertsSummary(),
         api.getProfile()
       ]);
-
-      console.log('[Dashboard] Devices loaded:', devicesRes.data.data?.length);
-      console.log('[Dashboard] Devices with metrics:', devicesRes.data.data?.filter(d => d.lastMetrics).length);
 
       setDevices(devicesRes.data.data || []);
       setSummary(summaryRes.data.data);
@@ -116,36 +114,12 @@ const RaspberryDashboard = () => {
     });
 
     socket.on('metrics-update', (data) => {
-      console.log('[Dashboard] 🎯 ========== METRICS UPDATE RECEIVED ==========');
-      console.log('[Dashboard] deviceId:', data.deviceId);
-      console.log('[Dashboard] metrics existe:', !!data.metrics);
-      console.log('[Dashboard] metrics.cpu:', data.metrics?.cpu?.usage);
-      console.log('[Dashboard] metrics.memory:', data.metrics?.memory?.usagePercent);
-      console.log('[Dashboard] metrics.temperature:', data.metrics?.temperature?.main);
-      console.log('[Dashboard] metrics.disk:', data.metrics?.disk?.length);
-      console.log('[Dashboard] Structure complète:', JSON.stringify(data.metrics).substring(0, 200));
-
       // Mettre à jour le device correspondant
-      setDevices(prevDevices => {
-        const updated = prevDevices.map(device => {
-          if (device._id === data.deviceId) {
-            console.log(`[Dashboard] Mise à jour du device ${device.deviceName} avec nouvelles métriques`);
-            return { ...device, lastMetrics: data.metrics };
-          }
-          return device;
-        });
-
-        const deviceFound = updated.find(d => d._id === data.deviceId);
-        if (deviceFound) {
-          console.log(`[Dashboard] ✅ Device trouvé et mis à jour: ${deviceFound.deviceName}`);
-        } else {
-          console.warn(`[Dashboard] ⚠️ Device ${data.deviceId} non trouvé dans la liste`);
-        }
-
-        return updated;
-      });
-
-      console.log('[Dashboard] 🎯 ========== END METRICS UPDATE ==========\n');
+      setDevices(prevDevices => prevDevices.map(device =>
+        device._id === data.deviceId
+          ? { ...device, lastMetrics: data.metrics }
+          : device
+      ));
     });
 
     return () => {
@@ -202,417 +176,235 @@ const RaspberryDashboard = () => {
   const avgTemp = summary?.averages?.temperature || null;
 
   return (
-    <div className="dashboard-container">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div className="dashboard-header-content">
-          <h1 className="dashboard-title">
-            <Server className="dashboard-title-icon" size={28} />
-            Raspberry Pi Manager
-          </h1>
-
-          <div className="dashboard-actions">
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => navigate('/automation')}
-            >
-              <Zap size={16} />
-              Automatisation
-            </button>
-
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              <RefreshCw size={16} className={refreshing ? 'loading-spinner' : ''} />
-              Actualiser
-            </button>
-
-            {summary?.alerts && summary.alerts.total > 0 && (
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={handleViewAlerts}
-                style={{ position: 'relative' }}
-              >
-                <Bell size={16} />
-                Alertes
-                {summary.alerts.total > 0 && (
-                  <span style={{
-                    position: 'absolute',
-                    top: '-4px',
-                    right: '-4px',
-                    background: 'var(--error)',
-                    color: 'white',
-                    borderRadius: '10px',
-                    padding: '2px 6px',
-                    fontSize: '0.625rem',
-                    fontWeight: 'bold'
-                  }}>
-                    {summary.alerts.total}
-                  </span>
-                )}
-              </button>
+    <div className="fade-in">
+      {/* Stats Grid */}
+      <div className="stats-grid">
+        <div className="stat-card" style={{ '--stat-color': 'var(--success)', '--stat-bg': 'var(--success-light)' }}>
+          <div className="stat-header">
+            <div className="stat-icon">
+              <Server size={24} />
+            </div>
+            {summary?.trends?.devices && (
+              <div className={`stat-trend ${summary.trends.devices >= 0 ? 'up' : 'down'}`}>
+                {summary.trends.devices >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                {Math.abs(summary.trends.devices)}%
+              </div>
             )}
-
-            {user?.role === 'admin' && (
-              <button className="btn btn-ghost btn-sm" onClick={handleAddDevice}>
-                <Plus size={16} />
-                Ajouter
-              </button>
-            )}
-
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/settings')}>
-              <Settings size={16} />
-            </button>
-
-            <button className="btn btn-ghost btn-sm" onClick={handleLogout}>
-              <LogOut size={16} />
-              Déconnexion
-            </button>
+          </div>
+          <div className="stat-content">
+            <div className="stat-value">{onlineDevices.length}</div>
+            <div className="stat-label">Devices en ligne</div>
+          </div>
+          <div className="stat-footer">
+            Total: {devices.length} devices
           </div>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="dashboard-main">
-        {/* Statistiques globales - Style Grafana */}
-        <div className="stats-grid">
-          <StatCard
-            title="Appareils"
-            value={summary?.devices?.online || 0}
-            subtitle={`${summary?.devices?.total || 0} au total`}
-            icon={<Server size={24} />}
-            trend={summary?.devices?.online > 0 ? 'positive' : null}
-            gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-          />
-
-          <StatCard
-            title="CPU Moyen"
-            value={`${parseFloat(avgCpu).toFixed(1)}%`}
-            subtitle="Tous les appareils en ligne"
-            icon={<Cpu size={24} />}
-            alert={avgCpu > 80}
-            gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
-          />
-
-          <StatCard
-            title="RAM Moyenne"
-            value={`${parseFloat(avgMemory).toFixed(1)}%`}
-            subtitle="Tous les appareils en ligne"
-            icon={<MemoryStick size={24} />}
-            alert={avgMemory > 80}
-            gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
-          />
-
-          {avgTemp && (
-            <StatCard
-              title="Temp. Moyenne"
-              value={`${parseFloat(avgTemp).toFixed(1)}°C`}
-              subtitle="Tous les appareils en ligne"
-              icon={<Thermometer size={24} />}
-              alert={avgTemp > 70}
-              gradient="linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
-            />
-          )}
-
-          {summary?.alerts && (
-            <StatCard
-              title="Alertes Actives"
-              value={summary.alerts.total}
-              subtitle={`${summary.alerts.critical || 0} critiques`}
-              icon={<AlertTriangle size={24} />}
-              alert={summary.alerts.total > 0}
-              onClick={handleViewAlerts}
-              clickable
-              gradient="linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%)"
-            />
-          )}
+        <div className="stat-card" style={{ '--stat-color': 'var(--primary)', '--stat-bg': 'var(--primary-light)' }}>
+          <div className="stat-header">
+            <div className="stat-icon">
+              <Cpu size={24} />
+            </div>
+            {summary?.trends?.cpu && (
+              <div className={`stat-trend ${summary.trends.cpu <= 0 ? 'up' : 'down'}`}>
+                {summary.trends.cpu <= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                {Math.abs(summary.trends.cpu)}%
+              </div>
+            )}
+          </div>
+          <div className="stat-content">
+            <div className="stat-value">{avgCpu.toFixed(1)}%</div>
+            <div className="stat-label">CPU Moyen</div>
+          </div>
+          <div className="stat-footer">
+            Charge système globale
+          </div>
         </div>
 
-        {/* Graphiques de métriques - Style Grafana */}
-        {metricsHistory.length > 0 && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-            gap: '1.5rem',
-            marginBottom: '2rem'
-          }}>
-            <MetricsChart
-              title="CPU Usage"
-              data={metricsHistory}
-              dataKey="cpu"
-              color="#f5576c"
-              unit="%"
-              icon={<Cpu size={16} />}
-            />
-            <MetricsChart
-              title="Utilisation Mémoire"
-              data={metricsHistory}
-              dataKey="memory"
-              color="#00f2fe"
-              unit="%"
-              icon={<MemoryStick size={16} />}
-            />
-            {avgTemp && (
-              <MetricsChart
-                title="Température"
-                data={metricsHistory}
-                dataKey="temperature"
-                color="#fee140"
-                unit="°C"
-                icon={<Thermometer size={16} />}
-              />
+        <div className="stat-card" style={{ '--stat-color': 'var(--warning)', '--stat-bg': 'var(--warning-light)' }}>
+          <div className="stat-header">
+            <div className="stat-icon">
+              <MemoryStick size={24} />
+            </div>
+            {summary?.trends?.memory && (
+              <div className={`stat-trend ${summary.trends.memory <= 0 ? 'up' : 'down'}`}>
+                {summary.trends.memory <= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                {Math.abs(summary.trends.memory)}%
+              </div>
             )}
-            <MetricsChart
-              title="Appareils en ligne"
-              data={metricsHistory}
-              dataKey="online"
-              color="#764ba2"
-              unit=""
-              icon={<Activity size={16} />}
-              areaChart
-            />
+          </div>
+          <div className="stat-content">
+            <div className="stat-value">{avgMemory.toFixed(1)}%</div>
+            <div className="stat-label">RAM Moyenne</div>
+          </div>
+          <div className="stat-footer">
+            Utilisation mémoire
+          </div>
+        </div>
+
+        {avgTemp !== null && (
+          <div className="stat-card" style={{ '--stat-color': 'var(--danger)', '--stat-bg': 'var(--danger-light)' }}>
+            <div className="stat-header">
+              <div className="stat-icon">
+                <Thermometer size={24} />
+              </div>
+              {summary?.trends?.temperature && (
+                <div className={`stat-trend ${summary.trends.temperature <= 0 ? 'up' : 'down'}`}>
+                  {summary.trends.temperature <= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                  {Math.abs(summary.trends.temperature)}%
+                </div>
+              )}
+            </div>
+            <div className="stat-content">
+              <div className="stat-value">{avgTemp.toFixed(1)}°C</div>
+              <div className="stat-label">Température</div>
+            </div>
+            <div className="stat-footer">
+              Moyenne des systèmes
+            </div>
           </div>
         )}
 
-        {/* Appareils en ligne */}
-        {onlineDevices.length > 0 && (
-          <section className="devices-section">
-            <div className="section-header">
-              <h2 className="section-title">
-                <Activity size={20} style={{ color: 'var(--success)' }} />
-                Appareils en ligne ({onlineDevices.length})
-              </h2>
+        {alertsSummary && alertsSummary.total > 0 && (
+          <div className="stat-card" style={{ '--stat-color': 'var(--danger)', '--stat-bg': 'var(--danger-light)' }}>
+            <div className="stat-header">
+              <div className="stat-icon">
+                <AlertTriangle size={24} />
+              </div>
             </div>
-            <div className="devices-grid">
-              {onlineDevices.map(device => (
-                <DeviceCard key={device._id} device={device} />
-              ))}
+            <div className="stat-content">
+              <div className="stat-value">{alertsSummary.total}</div>
+              <div className="stat-label">Alertes actives</div>
             </div>
-          </section>
-        )}
-
-        {/* Appareils hors ligne */}
-        {offlineDevices.length > 0 && (
-          <section className="devices-section">
-            <div className="section-header">
-              <h2 className="section-title">
-                Appareils hors ligne ({offlineDevices.length})
-              </h2>
+            <div className="stat-footer">
+              {alertsSummary.critical > 0 && `${alertsSummary.critical} critiques`}
             </div>
-            <div className="devices-grid">
-              {offlineDevices.map(device => (
-                <DeviceCard key={device._id} device={device} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* État vide */}
-        {devices.length === 0 && (
-          <div className="empty-state">
-            <Server className="empty-state-icon" size={64} />
-            <h3 className="empty-state-title">Aucun appareil</h3>
-            <p className="empty-state-description">
-              Commencez par ajouter une Raspberry Pi pour voir ses statistiques ici
-            </p>
-            {user?.role === 'admin' && (
-              <button className="btn btn-primary" onClick={handleAddDevice}>
-                <Plus size={16} />
-                Ajouter votre première Raspberry Pi
-              </button>
-            )}
           </div>
         )}
-      </main>
-    </div>
-  );
-};
+      </div>
 
-// Composant StatCard avec gradients style Grafana
-const StatCard = ({ title, value, subtitle, icon, trend, alert, onClick, clickable, gradient }) => {
-  return (
-    <div
-      className={`stat-card ${clickable ? 'clickable' : ''}`}
-      onClick={onClick}
-      style={{
-        cursor: clickable ? 'pointer' : 'default',
-        position: 'relative',
-        overflow: 'hidden'
-      }}
-    >
-      {gradient && (
+      {/* Charts */}
+      {metricsHistory.length > 0 && (
+        <div className="charts-grid">
+          <div className="chart-card">
+            <div className="chart-header">
+              <h3 className="chart-title">Utilisation CPU</h3>
+              <div className="chart-actions">
+                <button className="chart-action-btn" onClick={handleRefresh}>
+                  <RefreshCw size={14} className={refreshing ? 'loading-pulse' : ''} />
+                </button>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={metricsHistory}>
+                <defs>
+                  <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={12} />
+                <YAxis stroke="var(--text-muted)" fontSize={12} domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Area type="monotone" dataKey="cpu" stroke="var(--primary)" fill="url(#colorCpu)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="chart-card">
+            <div className="chart-header">
+              <h3 className="chart-title">Utilisation RAM</h3>
+              <div className="chart-actions">
+                <button className="chart-action-btn" onClick={handleRefresh}>
+                  <RefreshCw size={14} className={refreshing ? 'loading-pulse' : ''} />
+                </button>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={metricsHistory}>
+                <defs>
+                  <linearGradient id="colorMemory" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--warning)" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="var(--warning)" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={12} />
+                <YAxis stroke="var(--text-muted)" fontSize={12} domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Area type="monotone" dataKey="memory" stroke="var(--warning)" fill="url(#colorMemory)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Devices Section */}
+      <div className="devices-section-header">
+        <h2 className="section-title">
+          <Server size={24} />
+          Appareils ({onlineDevices.length}/{devices.length})
+        </h2>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button className="btn btn-ghost" onClick={handleRefresh}>
+            <RefreshCw size={16} className={refreshing ? 'loading-pulse' : ''} />
+          </button>
+          {user?.role === 'admin' && (
+            <button className="btn btn-primary" onClick={handleAddDevice}>
+              <Plus size={16} />
+              Ajouter
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Devices Grid */}
+      {devices.length > 0 ? (
+        <div className="devices-grid slide-in">
+          {devices.map(device => (
+            <DeviceCard key={device._id} device={device} />
+          ))}
+        </div>
+      ) : (
         <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '4px',
-          background: gradient
-        }} />
-      )}
-
-      <div className="stat-card-header">
-        <span className="stat-card-title">{title}</span>
-        <div className="stat-card-icon" style={{
-          background: gradient ? `${gradient.match(/#[0-9a-fA-F]{6}/)?.[0]}20` : 'rgba(99, 102, 241, 0.1)',
-          color: alert ? 'var(--error)' : 'var(--primary)'
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4rem 2rem',
+          textAlign: 'center',
+          background: 'var(--bg-secondary)',
+          borderRadius: 'var(--radius-lg)',
+          border: '2px dashed var(--border-color)'
         }}>
-          {icon}
-        </div>
-      </div>
-      <div className="stat-card-value" style={{
-        color: alert ? 'var(--error)' : 'var(--text-primary)',
-        fontSize: '2.5rem'
-      }}>
-        {value}
-      </div>
-      {subtitle && (
-        <div className="stat-card-subtitle">{subtitle}</div>
-      )}
-      {trend && (
-        <div className={`stat-card-trend ${trend}`}>
-          {trend === 'positive' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-          Actifs
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Composant MetricsChart style Grafana
-const MetricsChart = ({ title, data, dataKey, color, unit, icon, areaChart = false }) => {
-  const latestValue = data.length > 0 ? data[data.length - 1][dataKey] : 0;
-  const previousValue = data.length > 1 ? data[data.length - 2][dataKey] : latestValue;
-  const trend = latestValue > previousValue ? 'up' : latestValue < previousValue ? 'down' : 'stable';
-
-  return (
-    <div style={{
-      background: 'var(--bg-secondary)',
-      border: '1px solid var(--border-color)',
-      borderRadius: 'var(--border-radius)',
-      padding: '1.5rem',
-      transition: 'all var(--transition-normal)'
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '1rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: `${color}20`,
-            color: color,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            {icon}
-          </div>
-          <h3 style={{
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            color: 'var(--text-secondary)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-          }}>
-            {title}
+          <Server size={64} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+            Aucun appareil
           </h3>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            color: 'var(--text-primary)'
-          }}>
-            {latestValue.toFixed(1)}{unit}
-          </span>
-          {trend !== 'stable' && (
-            <div style={{
-              color: trend === 'up' ? 'var(--error)' : 'var(--success)',
-              display: 'flex',
-              alignItems: 'center'
-            }}>
-              {trend === 'up' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-            </div>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            Commencez par ajouter une Raspberry Pi pour voir ses statistiques ici
+          </p>
+          {user?.role === 'admin' && (
+            <button className="btn btn-primary" onClick={handleAddDevice}>
+              <Plus size={16} />
+              Ajouter votre première Raspberry Pi
+            </button>
           )}
         </div>
-      </div>
-
-      {/* Chart */}
-      <ResponsiveContainer width="100%" height={200}>
-        {areaChart ? (
-          <AreaChart data={data}>
-            <defs>
-              <linearGradient id={`gradient-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={color} stopOpacity={0.3} />
-                <stop offset="95%" stopColor={color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.3} />
-            <XAxis
-              dataKey="time"
-              stroke="var(--text-muted)"
-              style={{ fontSize: '0.75rem' }}
-            />
-            <YAxis
-              stroke="var(--text-muted)"
-              style={{ fontSize: '0.75rem' }}
-            />
-            <Tooltip
-              contentStyle={{
-                background: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px',
-                color: 'var(--text-primary)'
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey={dataKey}
-              stroke={color}
-              strokeWidth={2}
-              fill={`url(#gradient-${dataKey})`}
-            />
-          </AreaChart>
-        ) : (
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.3} />
-            <XAxis
-              dataKey="time"
-              stroke="var(--text-muted)"
-              style={{ fontSize: '0.75rem' }}
-            />
-            <YAxis
-              stroke="var(--text-muted)"
-              style={{ fontSize: '0.75rem' }}
-              domain={[0, 100]}
-            />
-            <Tooltip
-              contentStyle={{
-                background: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px',
-                color: 'var(--text-primary)'
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey={dataKey}
-              stroke={color}
-              strokeWidth={3}
-              dot={{ fill: color, r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-          </LineChart>
-        )}
-      </ResponsiveContainer>
+      )}
     </div>
   );
 };
