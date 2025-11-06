@@ -309,39 +309,42 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
     console.log(`[Device.updateMetrics]   disk[0] keys: ${Object.keys(cleanedMetrics.disk[0]).join(', ')}`);
   }
 
-  // SOLUTION RADICALE: Utiliser findByIdAndUpdate avec $set pour FORCER l'écrasement
-  // des données corrompues dans MongoDB (contournement du système de validation Mongoose)
-  console.log(`[Device.updateMetrics] 💪 Utilisation de findByIdAndUpdate pour forcer l'écrasement...`);
+  // SOLUTION ULTIME: Utiliser MongoDB Native Driver pour bypasser COMPLÈTEMENT Mongoose
+  // et écraser les données corrompues directement dans MongoDB
+  console.log(`[Device.updateMetrics] 🔨 Utilisation du MongoDB Native Driver (bypass total de Mongoose)...`);
 
   const now = new Date();
+  const mongoose = require('mongoose');
 
   try {
-    const updated = await this.constructor.findByIdAndUpdate(
-      this._id,
+    // Accéder directement à la collection MongoDB (sans Mongoose)
+    const collection = mongoose.connection.db.collection('devices');
+
+    // Utiliser updateOne avec MongoDB natif
+    const result = await collection.updateOne(
+      { _id: this._id },
       {
         $set: {
           lastMetrics: cleanedMetrics,
           lastSeen: now
         }
-      },
-      {
-        new: true,  // Retourner le document mis à jour
-        runValidators: false,  // DÉSACTIVER la validation pour contourner le problème
-        strict: false  // Permettre les champs non définis dans le schéma
       }
     );
 
-    console.log(`[Device.updateMetrics] ✅ SAUVEGARDE RÉUSSIE avec findByIdAndUpdate - ID: ${updated._id}`);
+    console.log(`[Device.updateMetrics] ✅ SAUVEGARDE RÉUSSIE avec MongoDB Native - matchedCount: ${result.matchedCount}, modifiedCount: ${result.modifiedCount}`);
+
+    // Recharger le document pour vérifier
+    const updated = await this.constructor.findById(this._id);
     console.log(`[Device.updateMetrics] ✅ Vérification - CPU: ${updated.lastMetrics?.cpu?.usage}%, disk type: ${typeof updated.lastMetrics?.disk}, isArray: ${Array.isArray(updated.lastMetrics?.disk)}`);
     console.log(`[Device.updateMetrics] ✅ disk.length: ${updated.lastMetrics?.disk?.length}`);
 
-    // Mettre à jour l'instance courante avec les nouvelles valeurs
+    // Mettre à jour l'instance courante
     this.lastMetrics = updated.lastMetrics;
     this.lastSeen = updated.lastSeen;
 
     return updated;
   } catch (error) {
-    console.error(`[Device.updateMetrics] ❌ ERREUR SAUVEGARDE avec findByIdAndUpdate:`, error);
+    console.error(`[Device.updateMetrics] ❌ ERREUR SAUVEGARDE avec MongoDB Native:`, error);
     throw error;
   }
 };
