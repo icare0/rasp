@@ -54,9 +54,6 @@ const RaspberryDashboard = () => {
         api.getProfile()
       ]);
 
-      console.log('[Dashboard] Devices loaded:', devicesRes.data.data?.length);
-      console.log('[Dashboard] Devices with metrics:', devicesRes.data.data?.filter(d => d.lastMetrics).length);
-
       setDevices(devicesRes.data.data || []);
       setSummary(summaryRes.data.data);
       setAlertsSummary(alertsRes.data.data);
@@ -116,36 +113,12 @@ const RaspberryDashboard = () => {
     });
 
     socket.on('metrics-update', (data) => {
-      console.log('[Dashboard] 🎯 ========== METRICS UPDATE RECEIVED ==========');
-      console.log('[Dashboard] deviceId:', data.deviceId);
-      console.log('[Dashboard] metrics existe:', !!data.metrics);
-      console.log('[Dashboard] metrics.cpu:', data.metrics?.cpu?.usage);
-      console.log('[Dashboard] metrics.memory:', data.metrics?.memory?.usagePercent);
-      console.log('[Dashboard] metrics.temperature:', data.metrics?.temperature?.main);
-      console.log('[Dashboard] metrics.disk:', data.metrics?.disk?.length);
-      console.log('[Dashboard] Structure complète:', JSON.stringify(data.metrics).substring(0, 200));
-
       // Mettre à jour le device correspondant
-      setDevices(prevDevices => {
-        const updated = prevDevices.map(device => {
-          if (device._id === data.deviceId) {
-            console.log(`[Dashboard] Mise à jour du device ${device.deviceName} avec nouvelles métriques`);
-            return { ...device, lastMetrics: data.metrics };
-          }
-          return device;
-        });
-
-        const deviceFound = updated.find(d => d._id === data.deviceId);
-        if (deviceFound) {
-          console.log(`[Dashboard] ✅ Device trouvé et mis à jour: ${deviceFound.deviceName}`);
-        } else {
-          console.warn(`[Dashboard] ⚠️ Device ${data.deviceId} non trouvé dans la liste`);
-        }
-
-        return updated;
-      });
-
-      console.log('[Dashboard] 🎯 ========== END METRICS UPDATE ==========\n');
+      setDevices(prevDevices => prevDevices.map(device =>
+        device._id === data.deviceId
+          ? { ...device, lastMetrics: data.metrics }
+          : device
+      ));
     });
 
     return () => {

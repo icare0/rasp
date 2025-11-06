@@ -5,6 +5,7 @@ import RaspberryDashboard from './components/RaspberryDashboard';
 import DeviceDetails from './components/DeviceDetails';
 import Terminal from './components/Terminal';
 import Automation from './components/Automation';
+import Alerts from './components/Alerts';
 import Settings from './components/Settings';
 import { api } from './services/api';
 
@@ -132,6 +133,17 @@ function App() {
             element={
               isAuthenticated ? (
                 <Automation />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/alerts"
+            element={
+              isAuthenticated ? (
+                <Alerts />
               ) : (
                 <Navigate to="/login" replace />
               )
