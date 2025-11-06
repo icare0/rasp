@@ -310,17 +310,20 @@ agentNamespace.on('connection', async (socket) => {
 
       const device = await Device.findById(socket.deviceId);
       if (device) {
-        // Parser récursivement les propriétés
-        const parseIfString = (value) => {
-          if (typeof value === 'string') {
-            try {
-              return JSON.parse(value);
-            } catch {
-              return value;
-            }
+        console.log(`[AGENT] 📊 Type de data.disk: ${typeof data.disk}, isArray: ${Array.isArray(data.disk)}`);
+
+        // Parser disk si c'est une string
+        let diskParsed = data.disk || [];
+        if (typeof diskParsed === 'string') {
+          console.log(`[AGENT] ⚠️ systemInfo.disk est une string, parsing...`);
+          try {
+            diskParsed = JSON.parse(diskParsed);
+            console.log(`[AGENT] ✅ systemInfo.disk parsé avec succès, longueur: ${diskParsed.length}`);
+          } catch (e) {
+            console.error(`[AGENT] ❌ Erreur parsing systemInfo.disk:`, e.message);
+            diskParsed = [];
           }
-          return value;
-        };
+        }
 
         device.systemInfo = {
           system: data.system || {},
@@ -328,9 +331,11 @@ agentNamespace.on('connection', async (socket) => {
           cpu: data.cpu || {},
           memory: data.memory || {},
           // S'assurer que disk est un tableau
-          disk: Array.isArray(parseIfString(data.disk)) ? parseIfString(data.disk) : []
+          disk: Array.isArray(diskParsed) ? diskParsed : []
         };
         device.deviceName = data.deviceName || device.deviceName;
+
+        console.log(`[AGENT] 💾 Sauvegarde des systemInfo...`);
         await device.save();
 
         console.log(`[AGENT] ✅ Informations système mises à jour pour ${socket.deviceName}`);
