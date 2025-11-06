@@ -299,7 +299,24 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
   console.log(`[Device.updateMetrics] Attribution à this.lastMetrics...`);
 
   const before = this.lastMetrics ? Object.keys(this.lastMetrics).length : 0;
-  this.lastMetrics = cleanedMetrics;
+
+  // DEBUG: Vérifier que disk est bien un array avant assignation
+  console.log(`[Device.updateMetrics] AVANT assignation - cleanedMetrics.disk:`);
+  console.log(`[Device.updateMetrics]   Type: ${typeof cleanedMetrics.disk}, isArray: ${Array.isArray(cleanedMetrics.disk)}`);
+  console.log(`[Device.updateMetrics]   Length: ${cleanedMetrics.disk?.length}`);
+  if (cleanedMetrics.disk && cleanedMetrics.disk.length > 0) {
+    console.log(`[Device.updateMetrics]   disk[0] type: ${typeof cleanedMetrics.disk[0]}`);
+    console.log(`[Device.updateMetrics]   disk[0] keys: ${Object.keys(cleanedMetrics.disk[0]).join(', ')}`);
+  }
+
+  // IMPORTANT: Utiliser set() au lieu d'assignation directe pour éviter les transformations Mongoose
+  this.set('lastMetrics', cleanedMetrics);
+  this.markModified('lastMetrics');
+
+  console.log(`[Device.updateMetrics] APRÈS assignation avec set():`);
+  console.log(`[Device.updateMetrics]   lastMetrics.disk type: ${typeof this.lastMetrics.disk}, isArray: ${Array.isArray(this.lastMetrics.disk)}`);
+  console.log(`[Device.updateMetrics]   lastMetrics.disk length: ${this.lastMetrics.disk?.length}`);
+
   console.log(`[Device.updateMetrics] lastMetrics avant: ${before} clés, après: ${Object.keys(this.lastMetrics).length} clés`);
 
   this.lastSeen = new Date();
