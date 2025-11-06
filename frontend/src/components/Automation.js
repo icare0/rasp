@@ -30,6 +30,8 @@ const Automation = () => {
   const [showDeviceSelector, setShowDeviceSelector] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const [executing, setExecuting] = useState(false);
+  const [showWorkflowModal, setShowWorkflowModal] = useState(false);
+  const [editingWorkflow, setEditingWorkflow] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -95,13 +97,61 @@ const Automation = () => {
   };
 
   const handleCreateWorkflowFromTemplate = async (template) => {
+    // Ouvrir la modale avec le template pré-rempli
+    setEditingWorkflow({
+      name: template.name,
+      description: template.description,
+      icon: template.icon,
+      category: template.category || 'custom',
+      steps: template.steps.map(step => ({...step}))
+    });
+    setShowWorkflowModal(true);
+  };
+
+  const handleCreateNewWorkflow = () => {
+    setEditingWorkflow({
+      name: '',
+      description: '',
+      icon: '⚙️',
+      category: 'custom',
+      steps: []
+    });
+    setShowWorkflowModal(true);
+  };
+
+  const handleEditWorkflow = (workflow) => {
+    setEditingWorkflow({...workflow});
+    setShowWorkflowModal(true);
+  };
+
+  const handleDeleteWorkflow = async (workflowId) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce workflow ?')) {
+      try {
+        await api.deleteWorkflow(workflowId);
+        loadData();
+      } catch (error) {
+        alert('❌ Erreur lors de la suppression');
+      }
+    }
+  };
+
+  const handleSaveWorkflow = async (workflowData) => {
     try {
-      await api.createWorkflow(template);
-      alert('✅ Workflow créé !');
+      if (workflowData._id) {
+        // Modification
+        await api.updateWorkflow(workflowData._id, workflowData);
+        alert('✅ Workflow mis à jour !');
+      } else {
+        // Création
+        await api.createWorkflow(workflowData);
+        alert('✅ Workflow créé !');
+      }
+      setShowWorkflowModal(false);
+      setEditingWorkflow(null);
       loadData();
       setActiveTab('workflows');
     } catch (error) {
-      alert('❌ Erreur lors de la création');
+      alert('❌ Erreur lors de la sauvegarde');
     }
   };
 
@@ -242,6 +292,10 @@ const Automation = () => {
                   Automatisez des séquences de commandes complexes
                 </p>
               </div>
+              <button className="btn btn-primary" onClick={handleCreateNewWorkflow}>
+                <Plus size={16} />
+                Nouveau Workflow
+              </button>
             </div>
 
             {workflows.length === 0 ? (
@@ -259,6 +313,8 @@ const Automation = () => {
                     key={workflow._id}
                     workflow={workflow}
                     onExecute={() => handleExecuteWorkflow(workflow)}
+                    onEdit={() => handleEditWorkflow(workflow)}
+                    onDelete={() => handleDeleteWorkflow(workflow._id)}
                   />
                 ))}
               </div>
@@ -304,6 +360,18 @@ const Automation = () => {
           }}
           executing={executing}
           action={pendingAction}
+        />
+      )}
+
+      {/* Workflow Editor Modal */}
+      {showWorkflowModal && editingWorkflow && (
+        <WorkflowEditorModal
+          workflow={editingWorkflow}
+          onSave={handleSaveWorkflow}
+          onCancel={() => {
+            setShowWorkflowModal(false);
+            setEditingWorkflow(null);
+          }}
         />
       )}
     </div>
@@ -392,7 +460,7 @@ const QuickActionCard = ({ action, onExecute }) => {
 };
 
 // Workflow Card
-const WorkflowCard = ({ workflow, onExecute }) => {
+const WorkflowCard = ({ workflow, onExecute, onEdit, onDelete }) => {
   return (
     <div style={{
       background: 'var(--bg-secondary)',
@@ -445,10 +513,18 @@ const WorkflowCard = ({ workflow, onExecute }) => {
           )}
         </div>
       </div>
-      <button className="btn btn-primary" onClick={onExecute}>
-        <Play size={16} />
-        Exécuter
-      </button>
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <button className="btn btn-ghost" onClick={onEdit} title="Éditer">
+          <Edit size={16} />
+        </button>
+        <button className="btn btn-ghost" onClick={onDelete} title="Supprimer" style={{ color: '#ef4444' }}>
+          <Trash2 size={16} />
+        </button>
+        <button className="btn btn-primary" onClick={onExecute}>
+          <Play size={16} />
+          Exécuter
+        </button>
+      </div>
     </div>
   );
 };
@@ -706,6 +782,367 @@ const DeviceSelectorModal = ({
             )}
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Workflow Editor Modal
+const WorkflowEditorModal = ({ workflow, onSave, onCancel }) => {
+  const [formData, setFormData] = useState({
+    name: workflow.name || '',
+    description: workflow.description || '',
+    icon: workflow.icon || '⚙️',
+    category: workflow.category || 'custom',
+    steps: workflow.steps || []
+  });
+
+  const addStep = () => {
+    setFormData({
+      ...formData,
+      steps: [
+        ...formData.steps,
+        {
+          name: '',
+          command: '',
+          directory: '/home/pi',
+          continueOnError: false,
+          timeout: 60
+        }
+      ]
+    });
+  };
+
+  const updateStep = (index, field, value) => {
+    const newSteps = [...formData.steps];
+    newSteps[index] = { ...newSteps[index], [field]: value };
+    setFormData({ ...formData, steps: newSteps });
+  };
+
+  const removeStep = (index) => {
+    setFormData({
+      ...formData,
+      steps: formData.steps.filter((_, i) => i !== index)
+    });
+  };
+
+  const moveStepUp = (index) => {
+    if (index === 0) return;
+    const newSteps = [...formData.steps];
+    [newSteps[index - 1], newSteps[index]] = [newSteps[index], newSteps[index - 1]];
+    setFormData({ ...formData, steps: newSteps });
+  };
+
+  const moveStepDown = (index) => {
+    if (index === formData.steps.length - 1) return;
+    const newSteps = [...formData.steps];
+    [newSteps[index], newSteps[index + 1]] = [newSteps[index + 1], newSteps[index]];
+    setFormData({ ...formData, steps: newSteps });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.name.trim()) {
+      alert('Le nom du workflow est requis');
+      return;
+    }
+    if (formData.steps.length === 0) {
+      alert('Ajoutez au moins une étape');
+      return;
+    }
+    for (let i = 0; i < formData.steps.length; i++) {
+      if (!formData.steps[i].name.trim() || !formData.steps[i].command.trim()) {
+        alert(`L'étape ${i + 1} doit avoir un nom et une commande`);
+        return;
+      }
+    }
+    onSave({ ...workflow, ...formData });
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.8)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: '1rem'
+    }}>
+      <div style={{
+        background: 'var(--bg-secondary)',
+        borderRadius: 'var(--border-radius)',
+        padding: '2rem',
+        maxWidth: '800px',
+        width: '100%',
+        maxHeight: '90vh',
+        overflow: 'auto'
+      }}>
+        <h2 style={{
+          fontSize: '1.5rem',
+          fontWeight: 600,
+          marginBottom: '1.5rem',
+          color: 'var(--text-primary)'
+        }}>
+          {workflow._id ? 'Éditer le workflow' : 'Nouveau workflow'}
+        </h2>
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* Basic Info */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Nom *
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  background: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)'
+                }}
+                required
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Description
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  background: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                  Icône
+                </label>
+                <input
+                  type="text"
+                  value={formData.icon}
+                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '1.5rem',
+                    textAlign: 'center'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                  Catégorie
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)'
+                  }}
+                >
+                  <option value="deployment">Déploiement</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="monitoring">Monitoring</option>
+                  <option value="backup">Backup</option>
+                  <option value="custom">Personnalisé</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <label style={{ fontWeight: 600, fontSize: '1.125rem' }}>
+                  Étapes *
+                </label>
+                <button type="button" className="btn btn-primary btn-sm" onClick={addStep}>
+                  <Plus size={14} />
+                  Ajouter une étape
+                </button>
+              </div>
+
+              {formData.steps.length === 0 ? (
+                <div style={{
+                  padding: '2rem',
+                  textAlign: 'center',
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: '8px',
+                  color: 'var(--text-muted)'
+                }}>
+                  Aucune étape. Cliquez sur "Ajouter une étape" pour commencer.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {formData.steps.map((step, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        padding: '1rem',
+                        background: 'var(--bg-tertiary)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <span style={{ fontWeight: 600 }}>Étape {index + 1}</span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => moveStepUp(index)}
+                            disabled={index === 0}
+                            title="Monter"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => moveStepDown(index)}
+                            disabled={index === formData.steps.length - 1}
+                            title="Descendre"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => removeStep(index)}
+                            style={{ color: '#ef4444' }}
+                            title="Supprimer"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <input
+                          type="text"
+                          placeholder="Nom de l'étape *"
+                          value={step.name}
+                          onChange={(e) => updateStep(index, 'name', e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '0.5rem',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            background: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)'
+                          }}
+                          required
+                        />
+
+                        <textarea
+                          placeholder="Commande à exécuter *"
+                          value={step.command}
+                          onChange={(e) => updateStep(index, 'command', e.target.value)}
+                          rows={2}
+                          style={{
+                            width: '100%',
+                            padding: '0.5rem',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            background: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)',
+                            fontFamily: 'monospace',
+                            fontSize: '0.875rem'
+                          }}
+                          required
+                        />
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Répertoire"
+                            value={step.directory}
+                            onChange={(e) => updateStep(index, 'directory', e.target.value)}
+                            style={{
+                              padding: '0.5rem',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '6px',
+                              background: 'var(--bg-secondary)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.875rem'
+                            }}
+                          />
+
+                          <input
+                            type="number"
+                            placeholder="Timeout (s)"
+                            value={step.timeout}
+                            onChange={(e) => updateStep(index, 'timeout', parseInt(e.target.value))}
+                            style={{
+                              padding: '0.5rem',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '6px',
+                              background: 'var(--bg-secondary)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.875rem'
+                            }}
+                            min="1"
+                          />
+                        </div>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={step.continueOnError}
+                            onChange={(e) => updateStep(index, 'continueOnError', e.target.checked)}
+                          />
+                          Continuer même si cette étape échoue
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+              <button type="button" className="btn btn-ghost" onClick={onCancel}>
+                Annuler
+              </button>
+              <button type="submit" className="btn btn-primary">
+                <Check size={16} />
+                {workflow._id ? 'Sauvegarder' : 'Créer'}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );
