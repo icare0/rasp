@@ -13,11 +13,7 @@
   --disk-color: #10b981;
   --network-color: #ec4899;
 
-  /* Couleurs de statut spécifiques */
-  --success-bg: #064e3b;
-  --warning-bg: #78350f;
-  --error-bg: #7f1d1d;
-  --info-bg: #1e3a8a;
+  /* Note: Les backgrounds de statut s'adaptent au thème */
 
   /* Animations */
   --transition-fast: 150ms ease;
@@ -46,7 +42,7 @@ body {
 
 .dashboard-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: var(--bg-primary);
 }
 
 .dashboard-header {
@@ -56,8 +52,6 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(10px);
-  background: rgba(30, 41, 59, 0.8);
 }
 
 .dashboard-header-content {
@@ -168,13 +162,13 @@ body {
 }
 
 .stat-card-trend.positive {
-  background: var(--success-bg);
-  color: var(--success);
+  background: var(--success-light);
+  color: var(--success-dark);
 }
 
 .stat-card-trend.negative {
-  background: var(--error-bg);
-  color: var(--error);
+  background: var(--danger-light);
+  color: var(--danger-dark);
 }
 
 /* ============================================
@@ -290,8 +284,8 @@ body {
 }
 
 .device-status-badge.online {
-  background: var(--success-bg);
-  color: var(--success);
+  background: var(--success-light);
+  color: var(--success-dark);
 }
 
 .device-status-badge.offline {
@@ -427,13 +421,13 @@ body {
 }
 
 .alert-badge.warning {
-  background: var(--warning-bg);
-  color: var(--warning);
+  background: var(--warning-light);
+  color: var(--warning-dark);
 }
 
 .alert-badge.critical {
-  background: var(--error-bg);
-  color: var(--error);
+  background: var(--danger-light);
+  color: var(--danger-dark);
   animation: alertPulse 2s ease-in-out infinite;
 }
 
@@ -492,16 +486,16 @@ body {
 }
 
 .btn-success:hover:not(:disabled) {
-  background: #059669;
+  background: var(--success-dark);
 }
 
 .btn-danger {
-  background: var(--error);
+  background: var(--danger);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #dc2626;
+  background: var(--danger-dark);
 }
 
 .btn-ghost {
@@ -580,7 +574,7 @@ body {
 }
 
 .alert-item.critical {
-  border-left-color: var(--error);
+  border-left-color: var(--danger);
 }
 
 .alert-item.info {
