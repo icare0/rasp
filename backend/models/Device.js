@@ -227,20 +227,73 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
 
   // Nettoyer les métriques en parsant récursivement
   console.log(`[Device.updateMetrics] Nettoyage des métriques...`);
+  console.log(`[Device.updateMetrics] Type de metrics.disk: ${typeof metrics.disk}, isArray: ${Array.isArray(metrics.disk)}`);
+  console.log(`[Device.updateMetrics] Type de metrics.network: ${typeof metrics.network}, isArray: ${Array.isArray(metrics.network)}`);
+
+  // Parser disk
+  let diskParsed = metrics.disk;
+  if (typeof diskParsed === 'string') {
+    console.log(`[Device.updateMetrics] ⚠️ disk est une string, parsing...`);
+    try {
+      diskParsed = JSON.parse(diskParsed);
+      console.log(`[Device.updateMetrics] ✅ disk parsé avec succès, longueur: ${diskParsed.length}`);
+    } catch (e) {
+      console.error(`[Device.updateMetrics] ❌ Erreur parsing disk:`, e.message);
+      diskParsed = [];
+    }
+  }
+
+  // Parser network
+  let networkParsed = metrics.network;
+  if (typeof networkParsed === 'string') {
+    console.log(`[Device.updateMetrics] ⚠️ network est une string, parsing...`);
+    try {
+      networkParsed = JSON.parse(networkParsed);
+      console.log(`[Device.updateMetrics] ✅ network parsé avec succès, longueur: ${networkParsed.length}`);
+    } catch (e) {
+      console.error(`[Device.updateMetrics] ❌ Erreur parsing network:`, e.message);
+      networkParsed = [];
+    }
+  }
+
+  // Parser cpu.loadAvg
+  let loadAvgParsed = metrics.cpu?.loadAvg;
+  if (typeof loadAvgParsed === 'string') {
+    console.log(`[Device.updateMetrics] ⚠️ cpu.loadAvg est une string, parsing...`);
+    try {
+      loadAvgParsed = JSON.parse(loadAvgParsed);
+    } catch (e) {
+      loadAvgParsed = [];
+    }
+  }
+
+  // Parser cpu.cores
+  let coresParsed = metrics.cpu?.cores;
+  if (typeof coresParsed === 'string') {
+    console.log(`[Device.updateMetrics] ⚠️ cpu.cores est une string, parsing...`);
+    try {
+      coresParsed = JSON.parse(coresParsed);
+    } catch (e) {
+      coresParsed = [];
+    }
+  }
+
   const cleanedMetrics = {
     cpu: metrics.cpu ? {
       usage: metrics.cpu.usage,
-      loadAvg: Array.isArray(parseIfString(metrics.cpu.loadAvg)) ? parseIfString(metrics.cpu.loadAvg) : [],
-      cores: Array.isArray(parseIfString(metrics.cpu.cores)) ? parseIfString(metrics.cpu.cores) : []
+      loadAvg: Array.isArray(loadAvgParsed) ? loadAvgParsed : [],
+      cores: Array.isArray(coresParsed) ? coresParsed : []
     } : undefined,
     temperature: metrics.temperature,
     memory: metrics.memory,
-    disk: Array.isArray(parseIfString(metrics.disk)) ? parseIfString(metrics.disk) : [],
-    network: Array.isArray(parseIfString(metrics.network)) ? parseIfString(metrics.network) : [],
+    disk: Array.isArray(diskParsed) ? diskParsed : [],
+    network: Array.isArray(networkParsed) ? networkParsed : [],
     processes: metrics.processes,
     uptime: metrics.uptime,
     timestamp: new Date()
   };
+
+  console.log(`[Device.updateMetrics] ✅ Après nettoyage - disk.length: ${cleanedMetrics.disk.length}, network.length: ${cleanedMetrics.network.length}`);
 
   console.log(`[Device.updateMetrics] Métriques nettoyées - CPU: ${cleanedMetrics.cpu?.usage}%, RAM: ${cleanedMetrics.memory?.usagePercent}%`);
   console.log(`[Device.updateMetrics] Attribution à this.lastMetrics...`);
