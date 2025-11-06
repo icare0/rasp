@@ -54,7 +54,10 @@ const RaspberryDashboard = () => {
         api.getProfile()
       ]);
 
-      setDevices(devicesRes.data.data);
+      console.log('[Dashboard] Devices loaded:', devicesRes.data.data?.length);
+      console.log('[Dashboard] Devices with metrics:', devicesRes.data.data?.filter(d => d.lastMetrics).length);
+
+      setDevices(devicesRes.data.data || []);
       setSummary(summaryRes.data.data);
       setAlertsSummary(alertsRes.data.data);
       setUser(userRes.data.user);
@@ -113,6 +116,13 @@ const RaspberryDashboard = () => {
     });
 
     socket.on('metrics-update', (data) => {
+      console.log('[Dashboard] Metrics update received:', {
+        deviceId: data.deviceId,
+        hasCpu: !!data.metrics?.cpu,
+        hasMemory: !!data.metrics?.memory,
+        hasTemp: !!data.metrics?.temperature
+      });
+
       // Mettre à jour le device correspondant
       setDevices(prevDevices =>
         prevDevices.map(device =>

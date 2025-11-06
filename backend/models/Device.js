@@ -241,6 +241,8 @@ deviceSchema.methods.updateMetrics = async function(metrics) {
   this.lastMetrics = cleanedMetrics;
   this.lastSeen = new Date();
   await this.save();
+
+  console.log(`[Device] Métriques mises à jour pour ${this.deviceName} - CPU: ${cleanedMetrics.cpu?.usage}%`);
 };
 
 // Méthode pour vérifier si une alerte doit être déclenchée

@@ -17,6 +17,10 @@ router.get('/', protect, async (req, res) => {
       .populate('owner', 'username email')
       .sort({ deviceName: 1 });
 
+    // Log pour debugging
+    const devicesWithMetrics = devices.filter(d => d.lastMetrics && Object.keys(d.lastMetrics).length > 0);
+    console.log(`[API] GET /devices - Retour de ${devices.length} appareils (${devicesWithMetrics.length} avec métriques)`);
+
     res.json({
       success: true,
       count: devices.length,

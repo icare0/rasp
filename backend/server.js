@@ -388,6 +388,7 @@ agentNamespace.on('connection', async (socket) => {
 
       // Log pour debugging
       console.log(`[AGENT] 📊 Métriques nettoyées - CPU: ${cleanMetrics.cpu.usage}% | RAM: ${cleanMetrics.memory.usagePercent}% | Disks: ${cleanMetrics.disk.length}`);
+      console.log(`[AGENT] 📊 Structure des métriques - cpu: ${!!cleanMetrics.cpu}, memory: ${!!cleanMetrics.memory}, disk: ${Array.isArray(cleanMetrics.disk)}`);
 
       // Mettre à jour les dernières métriques dans le device
       await device.updateMetrics(cleanMetrics);
@@ -469,11 +470,14 @@ agentNamespace.on('connection', async (socket) => {
       }
 
       // Envoyer les métriques en temps réel aux clients web
-      clientNamespace.to(`device-${socket.deviceId}`).emit('metrics-update', {
+      const updateData = {
         deviceId: socket.deviceId,
         metrics: device.lastMetrics,
         alerts: alerts.length > 0 ? alerts : null
-      });
+      };
+
+      console.log(`[AGENT] 📤 Broadcast metrics-update pour device ${socket.deviceId} - cpu: ${updateData.metrics?.cpu?.usage}%`);
+      clientNamespace.to(`device-${socket.deviceId}`).emit('metrics-update', updateData);
 
     } catch (error) {
       console.error('[AGENT] Erreur lors du traitement des métriques:', error);
