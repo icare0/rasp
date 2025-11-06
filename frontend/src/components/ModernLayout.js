@@ -2,27 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Server,
   Zap,
   Bell,
   Settings,
-  Terminal,
   LogOut,
   Menu,
   X,
   Sun,
   Moon,
-  ChevronLeft,
-  ChevronRight,
-  Search
+  ChevronDown
 } from 'lucide-react';
 import '../styles/ModernDashboard.css';
 
 const ModernLayout = ({ children, user }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'dark';
   });
@@ -33,8 +29,8 @@ const ModernLayout = ({ children, user }) => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const toggleTheme = (newTheme) => {
-    setTheme(newTheme);
+  const toggleTheme = () => {
+    setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
   };
 
   const handleLogout = () => {
@@ -47,173 +43,156 @@ const ModernLayout = ({ children, user }) => {
   };
 
   const navItems = [
-    {
-      section: 'Principal',
-      items: [
-        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { path: '/automation', icon: Zap, label: 'Automatisation' },
-        { path: '/alerts', icon: Bell, label: 'Alertes', badge: alertsCount },
-      ]
-    },
-    {
-      section: 'Gestion',
-      items: [
-        { path: '/settings', icon: Settings, label: 'Paramètres' },
-      ]
-    }
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/automation', icon: Zap, label: 'Automatisation' },
+    { path: '/alerts', icon: Bell, label: 'Alertes', badge: alertsCount },
+    { path: '/settings', icon: Settings, label: 'Paramètres' },
   ];
+
+  const handleNavClick = (path) => {
+    navigate(path);
+    setMobileMenuOpen(false);
+  };
 
   return (
     <div className="modern-dashboard">
-      {/* Sidebar */}
-      <aside className={`modern-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
-        <div className="sidebar-header">
-          <div className="sidebar-logo">
-            π
+      {/* Top Navigation Bar */}
+      <header className="top-nav">
+        <div className="top-nav-container">
+          {/* Logo & Brand */}
+          <div className="nav-brand" onClick={() => navigate('/dashboard')}>
+            <div className="brand-logo">π</div>
+            <span className="brand-name">RaspManager</span>
           </div>
-          <span className="sidebar-brand">RaspManager</span>
-        </div>
 
-        <nav className="sidebar-nav">
-          {navItems.map((section, idx) => (
-            <div key={idx} className="nav-section">
-              <div className="nav-section-title">{section.section}</div>
-              <div className="nav-items">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={item.path}
-                      className={`nav-item ${isActive(item.path) ? 'active' : ''}`}
-                      onClick={() => {
-                        navigate(item.path);
-                        setMobileOpen(false);
-                      }}
-                    >
-                      <Icon className="nav-item-icon" size={20} />
-                      <span className="nav-item-text">{item.label}</span>
-                      {item.badge > 0 && (
-                        <span className="nav-badge">{item.badge}</span>
-                      )}
+          {/* Desktop Navigation */}
+          <nav className="nav-links">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.path}
+                  className={`nav-link ${isActive(item.path) ? 'active' : ''}`}
+                  onClick={() => handleNavClick(item.path)}
+                >
+                  <Icon size={18} />
+                  <span>{item.label}</span>
+                  {item.badge > 0 && <span className="nav-link-badge">{item.badge}</span>}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right Actions */}
+          <div className="nav-actions">
+            {/* Theme Switcher */}
+            <button
+              className="nav-action-btn theme-toggle"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+            >
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+
+            {/* Notifications */}
+            <button
+              className="nav-action-btn"
+              onClick={() => navigate('/alerts')}
+              title="Notifications"
+            >
+              <Bell size={18} />
+              {alertsCount > 0 && <span className="action-badge">{alertsCount}</span>}
+            </button>
+
+            {/* User Menu */}
+            <div className="user-dropdown">
+              <button
+                className="user-dropdown-btn"
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+              >
+                <div className="user-avatar-mini">
+                  {user?.username?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <span className="user-name-display">{user?.username || 'Utilisateur'}</span>
+                <ChevronDown size={16} className={`dropdown-arrow ${userMenuOpen ? 'open' : ''}`} />
+              </button>
+
+              {userMenuOpen && (
+                <>
+                  <div className="dropdown-overlay" onClick={() => setUserMenuOpen(false)} />
+                  <div className="user-dropdown-menu">
+                    <div className="dropdown-header">
+                      <div className="user-avatar-large">
+                        {user?.username?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                      <div className="user-details">
+                        <div className="user-name-full">{user?.username || 'Utilisateur'}</div>
+                        <div className="user-role-badge">{user?.role || 'user'}</div>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="dropdown-divider"></div>
+                    <button className="dropdown-item" onClick={() => { navigate('/settings'); setUserMenuOpen(false); }}>
+                      <Settings size={16} />
+                      <span>Paramètres</span>
+                    </button>
+                    <button className="dropdown-item logout" onClick={handleLogout}>
+                      <LogOut size={16} />
+                      <span>Déconnexion</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-          ))}
-        </nav>
 
-        <div className="sidebar-footer">
-          <button
-            className="sidebar-toggle"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          >
-            {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-          </button>
+            {/* Mobile Menu Toggle */}
+            <button
+              className="mobile-menu-toggle"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
         </div>
-      </aside>
+      </header>
+
+      {/* Mobile Navigation Menu */}
+      {mobileMenuOpen && (
+        <>
+          <div className="mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
+          <nav className="mobile-nav">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.path}
+                  className={`mobile-nav-link ${isActive(item.path) ? 'active' : ''}`}
+                  onClick={() => handleNavClick(item.path)}
+                >
+                  <Icon size={20} />
+                  <span>{item.label}</span>
+                  {item.badge > 0 && <span className="mobile-nav-badge">{item.badge}</span>}
+                </button>
+              );
+            })}
+            <div className="mobile-nav-divider"></div>
+            <button className="mobile-nav-link" onClick={toggleTheme}>
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              <span>{theme === 'dark' ? 'Mode clair' : 'Mode sombre'}</span>
+            </button>
+            <button className="mobile-nav-link logout" onClick={handleLogout}>
+              <LogOut size={20} />
+              <span>Déconnexion</span>
+            </button>
+          </nav>
+        </>
+      )}
 
       {/* Main Content */}
-      <main className="modern-main">
-        {/* Header */}
-        <header className="modern-header">
-          <div className="header-left">
-            <button
-              className="header-action mobile-menu-btn"
-              onClick={() => setMobileOpen(!mobileOpen)}
-              style={{ display: 'none' }}
-            >
-              {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-
-            <h1 className="header-title">
-              {location.pathname === '/dashboard' && 'Dashboard'}
-              {location.pathname === '/automation' && 'Automatisation'}
-              {location.pathname === '/alerts' && 'Alertes'}
-              {location.pathname === '/settings' && 'Paramètres'}
-              {location.pathname.startsWith('/devices/') && !location.pathname.includes('/terminal') && 'Détails du Device'}
-              {location.pathname.includes('/terminal') && 'Terminal'}
-            </h1>
-
-            <div className="header-search">
-              <Search className="header-search-icon" size={16} />
-              <input type="text" placeholder="Rechercher..." />
-            </div>
-          </div>
-
-          <div className="header-right">
-            <button className="header-action" onClick={() => navigate('/alerts')}>
-              <Bell size={20} />
-              {alertsCount > 0 && <span className="header-action-badge"></span>}
-            </button>
-
-            <div className="theme-switcher">
-              <button
-                className={`theme-option ${theme === 'light' ? 'active' : ''}`}
-                onClick={() => toggleTheme('light')}
-                title="Mode clair"
-              >
-                <Sun size={16} />
-              </button>
-              <button
-                className={`theme-option ${theme === 'dark' ? 'active' : ''}`}
-                onClick={() => toggleTheme('dark')}
-                title="Mode sombre"
-              >
-                <Moon size={16} />
-              </button>
-            </div>
-
-            <div className="user-menu">
-              <div className="user-avatar">
-                {user?.username?.charAt(0).toUpperCase() || 'U'}
-              </div>
-              <div className="user-info">
-                <div className="user-name">{user?.username || 'Utilisateur'}</div>
-                <div className="user-role">{user?.role || 'user'}</div>
-              </div>
-            </div>
-
-            <button className="header-action" onClick={handleLogout} title="Déconnexion">
-              <LogOut size={20} />
-            </button>
-          </div>
-        </header>
-
-        {/* Content */}
-        <div className="modern-content">
+      <main className="main-content">
+        <div className="content-wrapper">
           {children}
         </div>
       </main>
-
-      {/* Mobile Overlay */}
-      {mobileOpen && (
-        <div
-          className="mobile-overlay"
-          onClick={() => setMobileOpen(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            zIndex: 99,
-            display: 'none'
-          }}
-        />
-      )}
-
-      <style>{`
-        @media (max-width: 768px) {
-          .mobile-menu-btn {
-            display: flex !important;
-          }
-          .mobile-overlay {
-            display: block !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
