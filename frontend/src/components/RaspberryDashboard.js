@@ -170,10 +170,10 @@ const RaspberryDashboard = () => {
   const onlineDevices = devices.filter(d => d.isOnline);
   const offlineDevices = devices.filter(d => !d.isOnline);
 
-  // Calculer les moyennes globales
-  const avgCpu = summary?.averages?.cpu || 0;
-  const avgMemory = summary?.averages?.memory || 0;
-  const avgTemp = summary?.averages?.temperature || null;
+  // Calculer les moyennes globales - s'assurer que ce sont des nombres
+  const avgCpu = parseFloat(summary?.averages?.cpu) || 0;
+  const avgMemory = parseFloat(summary?.averages?.memory) || 0;
+  const avgTemp = summary?.averages?.temperature ? parseFloat(summary.averages.temperature) : null;
 
   return (
     <div className="fade-in">
